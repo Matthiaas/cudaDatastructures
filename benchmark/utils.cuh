@@ -28,30 +28,33 @@ float timeKernel(std::function<void(void)> invoke_kernel)
 
 template <typename T>
 void runGpuBenchmark(T* bechmark, size_t num_iterations, size_t blocks, size_t threads) {  
-  std::cout << "Running GPU bechmark for " << bechmark->name() << std::endl;
-  std::cout << "----------------------------------------" << std::endl;
+  // std::cout << "Running GPU bechmark for " << bechmark->name() << std::endl;
+  // std::cout << "----------------------------------------" << std::endl;
 
   bechmark->GpuInit();
   float ms_time = timeKernel(std::bind(&T::GpuRun, bechmark, num_iterations, blocks, threads)); 
   bechmark->GpuCleanup();
-  std::cout << "Time: " << ms_time << " ms" << std::endl;
-  std::cout << "----------------------------------------" << std::endl;
-  std::cout << "----------------------------------------" << std::endl;
+  std::cout << "GPU," << bechmark->name()  << "," << threads << "," << blocks << "," << num_iterations << "," << ms_time << std::endl;
+  // std::cout << "Time: " << ms_time << " ms" << std::endl;
+  // std::cout << "----------------------------------------" << std::endl;
+  // std::cout << "----------------------------------------" << std::endl;
 }
 
 template <typename T>
 void runCpuBenchmark(T* bechmark, size_t num_iterations, size_t threads) {  
-  std::cout << "Running CPU bechmark for " << bechmark->name() << std::endl;
-  std::cout << "----------------------------------------" << std::endl;
+  // std::cout << "Running CPU bechmark for " << bechmark->name() << std::endl;
+  // std::cout << "----------------------------------------" << std::endl;
 
   bechmark->CpuInit();
   std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
   bechmark->CpuRun(num_iterations, threads);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   bechmark->CpuCleanup();
-  std::cout << "Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()  << " ms" << std::endl;
-  std::cout << "----------------------------------------" << std::endl;
-  std::cout << "----------------------------------------" << std::endl;
+  auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  std::cout << "CPU," << bechmark->name()  << "," << threads << "," << 1 << "," << num_iterations << "," << time << std::endl;
+  // std::cout << "Time: " <<   << " ms" << std::endl;
+  // std::cout << "----------------------------------------" << std::endl;
+  // std::cout << "----------------------------------------" << std::endl;
 }
 
 void timeKernels(

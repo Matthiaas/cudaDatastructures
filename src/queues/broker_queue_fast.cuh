@@ -1,5 +1,5 @@
-#ifndef BROKER_QUEUE_H
-#define BROKER_QUEUE_H
+#ifndef BROKER_QUEUE_FAST_H
+#define BROKER_QUEUE_FAST_H
 
 #include <iostream>
 
@@ -21,37 +21,33 @@ namespace queues {
 // https://dl.acm.org/doi/pdf/10.1145/3205289.3205291?casa_token=K6QIArwqwFAAAAAA:VmArpPUZYMBQGTJKLPZnGbYyaBFafszX-kMfXSsLlTTmplen5qG83l3p_yer65b2OB_sHn4wQuT8
 
 template <typename T, size_t SIZE>
-class BrokerQueue {
+class BrokerQueueFast {
 public:
   typedef T data_type;
+  static constexpr bool can_run_on_gpu = true;
+  static constexpr bool can_run_on_cpu = false;
 
   static_assert(SIZE > 0, "Size must be greater than 0");
   static_assert((SIZE & (SIZE - 1)) == 0, "Size must be a power of 2");
 
-  __device__ __host__ BrokerQueue() : head(0), tail(0), count(0) {
+  __device__ BrokerQueueFast() : head(0), tail(0), count(0) {
     for (int i = 0; i < SIZE; i++) {
       buffer[i].ticket = 0;
     }
   } 
-  __device__ __host__ ~BrokerQueue() {
+  __device__ ~BrokerQueueFast() {
   }
 
   typedef cub::BlockScan<uint32_t, BLOCKSIZE> BlockScan;
   
   __device__ bool push(T value, bool insert)
   {
-      // printf("threadid %d  block %d start count %lld\n", threadIdx.x, blockIdx.x, count);
-
     uint32_t participate_in = insert; 
     bool success = insert;
-
-    __shared__ uint64_t shared_tail;
     __shared__ typename BlockScan::TempStorage temp_storage;
     uint32_t participate;  
     BlockScan(temp_storage).ExclusiveSum(participate_in, participate);
     int64_t sum = participate + participate_in;
-    // printf("threadid %d  block %d participate: %d, participate_in: %d, sum: %d\n", 
-    // threadIdx.x, blockIdx.x, participate, participate_in, sum);
 
     __shared__ bool try_again;
     if (threadIdx.x == BLOCKSIZE - 1) {
@@ -74,13 +70,8 @@ public:
       BlockScan(temp_storage).ExclusiveSum(participate_in, participate);
       sum = participate + participate_in;
     } 
-    
-
-    // printf("tryagain threadid %d  block %d participate: %d, participate_in: %d, sum: %d   tail %lld\n", 
-    // threadIdx.x, blockIdx.x, participate, participate_in, sum, tail);
-
+    __shared__ uint64_t shared_tail;
     if (threadIdx.x == BLOCKSIZE - 1) {
-      // printf("threadid %d  block %d incrementing tail by %d\n", threadIdx.x, blockIdx.x, sum);
       shared_tail = fetch_and_add(&tail, static_cast<uint64_t>(sum));
     }
     __syncthreads();
@@ -89,10 +80,7 @@ public:
       return false;
     }
 
-
     uint64_t my_tail = shared_tail + participate;
-    // printf("threadid %d  block %d  sharedtail %lld my_tail: %lld tail %lld\n", 
-    // threadIdx.x, blockIdx.x, shared_tail, my_tail, tail);
     uint64_t pos = my_tail % SIZE;
     uint64_t ticket = 2 * (my_tail / SIZE);
     volatile Node& node = buffer[pos];
@@ -105,8 +93,6 @@ public:
         loop = false;
       }
     }
-        //  printf("bthreadid %d  block %d incrementing tail by %d\n", threadIdx.x, blockIdx.x, sum);
-
     return true;
   }
 

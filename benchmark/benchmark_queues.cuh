@@ -1,6 +1,7 @@
 
 
 #include "../benchmark/utils.cuh"
+#include "queues/broker_queue_fast.cuh"
 
 #include <thread>
 
@@ -48,10 +49,12 @@ public:
     QueueBenchmark(const std::string& name) : name_(name) {}
     QueueBenchmark(std::string&& name) : name_(name) {}
 
+    virtual bool CanRunOnGpu() = 0;
     virtual void GpuInit() = 0;
     virtual void GpuRun(size_t num_iter, size_t num_blocks, size_t num_threads) = 0;
     virtual void GpuCleanup() = 0;
 
+    virtual bool CanRunOnCpu() = 0;
     virtual void CpuInit() = 0;
     virtual void CpuRun(size_t num_iter, size_t num_threads) = 0;
     virtual void CpuCleanup() = 0;
@@ -65,9 +68,13 @@ private:
 
 
 template <typename T>
-struct GPUQueueBenchmark : public QueueBenchmark {
-    GPUQueueBenchmark(const std::string& name) : QueueBenchmark(name) {}
-    GPUQueueBenchmark(std::string&& name) : QueueBenchmark(name) {}
+struct CpuGpuQueueBenchmark : public QueueBenchmark {
+    CpuGpuQueueBenchmark(const std::string& name) : QueueBenchmark(name) {}
+    __host__ CpuGpuQueueBenchmark(std::string&& name) : QueueBenchmark(name) {}
+
+    virtual bool CanRunOnGpu() override {
+        return T::can_run_on_gpu;
+    }
 
     virtual void GpuInit() override {
         cudaMalloc(&d_buffer, sizeof(T*));
@@ -86,11 +93,16 @@ struct GPUQueueBenchmark : public QueueBenchmark {
         cudaFree(d_buffer);
     }
 
+    virtual bool CanRunOnCpu() override {
+        return T::can_run_on_cpu;
+    }
+
     virtual void CpuInit() override {
         buffer = new T();
     }
 
     virtual void CpuRun(size_t num_iter, size_t num_threads) override {
+        
         std::vector<std::thread> threads;
         threads.reserve(num_threads);
         threads.push_back(std::thread([this, num_iter]() {
@@ -113,12 +125,9 @@ struct GPUQueueBenchmark : public QueueBenchmark {
         delete buffer;
     }
 
-    
-    
 private:    
     T** d_buffer;
-    T* buffer;
-    
+    T* buffer;   
 };
 
 

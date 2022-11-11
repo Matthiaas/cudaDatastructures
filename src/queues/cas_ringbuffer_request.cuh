@@ -19,6 +19,8 @@ template <typename T, T EMPTY_VALUE, size_t SIZE>
 class CASRingBufferRequest {
 public:
   typedef T data_type;
+  static constexpr bool can_run_on_gpu = true;
+  static constexpr bool can_run_on_cpu = false;
 
   static_assert(SIZE > 0, "Size must be greater than 0");
   static_assert((SIZE & (SIZE - 1)) == 0, "Size must be a power of 2");
