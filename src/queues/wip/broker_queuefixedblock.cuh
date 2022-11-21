@@ -116,11 +116,11 @@ private:
   };
 
   volatile Node buffer[SIZE];
-  using CounterType = typename enable_if_else<
+  using CounterType = typename std::conditional<
     CurrentPlatform == Platform::GPU, 
     int64_t, std::atomic<int64_t>>::type;
     
-  using HeadTailType = typename enable_if_else<
+  using HeadTailType = typename std::conditional<
   CurrentPlatform == Platform::GPU, 
     uint64_t, std::atomic<uint64_t>>::type;
 

@@ -31,7 +31,7 @@ public:
 
   __device__ __host__ BrokerQueue() : head(0), tail(0), count(0) {
     for (int i = 0; i < SIZE; i++) {
-      buffer[i].ticket = 0;
+      ticket[i] = 0;
     }
   } 
   __device__ __host__ ~BrokerQueue() {
@@ -49,16 +49,19 @@ public:
     }
     uint64_t my_tail = fetch_and_add(&tail, 1);
     uint64_t pos = my_tail % SIZE;
-    uint64_t ticket = 2 * (my_tail / SIZE);
-    volatile Node& node = buffer[pos];
+    uint64_t expected_ticket = 2 * (my_tail / SIZE);
+
     bool loop = true;
     while(loop) {
       
-      if (node.ticket == ticket) {
-        node.data = value;
+      if (ticket[pos] == expected_ticket) {
+        data[pos] = value;
         platformMemFence();
-        node.ticket = 2 * (my_tail / SIZE) + 1;
+        ticket[pos] = 2 * (my_tail / SIZE) + 1;
         loop = false;
+      }
+      if constexpr (CurrentPlatform == Platform::GPU) {
+        __nanosleep(1);
       }
     }
     return true;
@@ -74,14 +77,14 @@ public:
       }
       uint64_t my_head = fetch_and_add(&head, 1);
       uint64_t pos = my_head % SIZE;
-      uint64_t ticket = 2 * (my_head / SIZE) + 1;
-      volatile Node& node = buffer[pos];
+      uint64_t expected_ticket = 2 * (my_head / SIZE) + 1;
+
       bool loop = true;
       while(loop) {
-        if (node.ticket == ticket) {
-          *res = node.data;
+        if (ticket[pos] == expected_ticket) {
+          *res = data[pos];
           platformMemFence();
-          node.ticket = 2 * ((my_head + SIZE) / SIZE);
+          ticket[pos] = 2 * ((my_head + SIZE) / SIZE);
           loop = false;
         }
       }
@@ -91,22 +94,15 @@ public:
   }
 
 private:
-  enum NodeState {
-    EMPTY = 0,
-    FULL = 1,
-  };
-  struct Node {
-    T data;
-    uint64_t ticket;
-  };
+  volatile T data[SIZE];
+  volatile uint64_t ticket[SIZE];
 
-  volatile Node buffer[SIZE];
   // TODO: What if this overflows?
-  using CounterType = typename enable_if_else<
+  using CounterType = typename std::conditional<
     CurrentPlatform == Platform::GPU, 
     int64_t, std::atomic<int64_t>>::type;
     
-  using HeadTailType = typename enable_if_else<
+  using HeadTailType = typename std::conditional<
   CurrentPlatform == Platform::GPU, 
     uint64_t, std::atomic<uint64_t>>::type;
 

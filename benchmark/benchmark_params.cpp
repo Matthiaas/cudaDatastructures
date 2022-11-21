@@ -23,11 +23,15 @@ BenchParams parseArguments(int argc, char *argv[]) {
     arg_parser parser(argc, argv);
 
     params.cpu.threads = parser.getCmdOptionAsInt("-cpu_threads").value_or(1);
-    params.cpu.iterations = parser.getCmdOptionAsInt("-cpu_iterations").value_or(1);
+    params.cpu.iterations = parser.getCmdOptionAsInt("-cpu_iterations").value_or(0);
     params.gpu.threads = parser.getCmdOptionAsInt("-gpu_threads").value_or(1);
     params.gpu.blocks = parser.getCmdOptionAsInt("-gpu_blocks").value_or(1);
-    params.gpu.iterations = parser.getCmdOptionAsInt("-gpu_iterations").value_or(1);
+    params.gpu.iterations = parser.getCmdOptionAsInt("-gpu_iterations").value_or(0);
+    params.atomicadd = parser.cmdOptionExists("-atomicadd");
+    params.atomiccas = parser.cmdOptionExists("-atomiccas");
+    params.data_type = parser.getCmdOption("-data_type").value_or("none");
     const auto queues = parser.getCmdOption("-queues");
+
     if (queues.has_value()) {
         params.queues = split(std::string(queues.value()), ',');
     } else {

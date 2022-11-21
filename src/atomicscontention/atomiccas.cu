@@ -7,13 +7,15 @@
 #include "device_launch_parameters.h" 
 #include <cub/cub.cuh>
 
+#include "../../cuda_utils.cuh"
+
 #define WARPSIZE 32
 #define BLOCKSIZE 1024
 
 namespace atomiccas {
 
-__global__
-void add_as_accumuluated_requests(int *v)
+template <typename T>
+__global__ void add_as_accumuluated_requests(T *v, uint32_t iters)
 {
   const int warp_count = BLOCKSIZE / WARPSIZE;
   int warp_id = threadIdx.x / WARPSIZE;
@@ -21,57 +23,25 @@ void add_as_accumuluated_requests(int *v)
   typedef cub::WarpScan<int> WarpScan;
   __shared__ typename WarpScan::TempStorage temp_storage[warp_count];
 
-  __shared__ int requests[warp_count * WARPSIZE];
+  __shared__ T requests[warp_count * WARPSIZE];
 
-  int value = 1;
-  int pos;
+  while (iters--) {
+    int value = 1;
+    int pos;
 
-  WarpScan(temp_storage[warp_id]).ExclusiveSum(value, pos);
+    WarpScan(temp_storage[warp_id]).ExclusiveSum(value, pos);
 
-  requests[warp_id * WARPSIZE + pos] = value;
-  __syncwarp();
-  if(threadIdx.x % WARPSIZE == 0) {
-    int sum = 0;
-    for (int i = 0; i < WARPSIZE; i++) {
-      sum += requests[warp_id * WARPSIZE + i];
-    }
-
-    while(1) {
-      int val = *v;
-      if (atomicCAS(v, val, val + sum) == val) {
-        break;
+    requests[warp_id * WARPSIZE + pos] = value;
+    __syncwarp();
+    if(threadIdx.x % WARPSIZE == 0) {
+      T sum = 0;
+      for (int i = 0; i < WARPSIZE; i++) {
+        sum += requests[warp_id * WARPSIZE + i];
       }
-    }
-  }
-  
-}
 
-
-
-__global__
-void add_as_requests(int *v)
-{
-  const int warp_count = BLOCKSIZE / WARPSIZE;
-  int warp_id = threadIdx.x / WARPSIZE;
-
-  typedef cub::WarpScan<int> WarpScan;
-  __shared__ typename WarpScan::TempStorage temp_storage[warp_count];
-
-  __shared__ int requests[warp_count * WARPSIZE];
-
-  int value = 1;
-  int pos;
-
-  WarpScan(temp_storage[warp_id]).ExclusiveSum(value, pos);
-
-  requests[warp_id * WARPSIZE + pos] = value;
-  __syncwarp();
-  if(threadIdx.x % WARPSIZE == 0) {
-    for (int i = 0; i < WARPSIZE; i++) {
-      
       while(1) {
-        int val = *v;
-        if (atomicCAS(v, val, val + requests[warp_id * WARPSIZE + i]) == val) {
+        T val = *v;
+        if (atomicCAS(v, val, val + sum) == val) {
           break;
         }
       }
@@ -79,17 +49,61 @@ void add_as_requests(int *v)
   }
   
 }
-
-__global__
-void add_trival(int *v)
+  
+template <typename T>
+__global__ void add_as_requests(T *v, uint32_t iters)
 {
-  while(1) {
-    int val = *v;
-    if (atomicCAS(v, val, val + 1) == val) {
-      break;
+  const int warp_count = BLOCKSIZE / WARPSIZE;
+  int warp_id = threadIdx.x / WARPSIZE;
+
+  typedef cub::WarpScan<int> WarpScan;
+  __shared__ typename WarpScan::TempStorage temp_storage[warp_count];
+
+  __shared__ T requests[warp_count * WARPSIZE];
+
+  while (iters--) {
+    int value = 1;
+    int pos;
+
+    WarpScan(temp_storage[warp_id]).ExclusiveSum(value, pos);
+
+    requests[warp_id * WARPSIZE + pos] = value;
+    __syncwarp();
+    if(threadIdx.x % WARPSIZE == 0) {
+      for (int i = 0; i < WARPSIZE; i++) {
+        
+        while(1) {
+          T val = *v;
+          if (atomicCAS(v, val, val + requests[warp_id * WARPSIZE + i]) == val) {
+            break;
+          }
+        }
+      }
     }
   }
 }
+
+template <typename T>
+__global__ void add_trival(T *v, uint32_t iters)
+{
+  while (iters--) {
+    while(1) {
+      int val = *v;
+      if (atomicCAS(v, val, val + 1) == val) {
+        break;
+      }
+    }
+  }
+}
+
+template __global__ void add_as_accumuluated_requests(uint32_t *v, uint32_t iters);
+template __global__ void add_as_requests(uint32_t *v, uint32_t iters);
+template __global__ void add_trival(uint32_t *v, uint32_t iters);
+
+template __global__ void add_as_accumuluated_requests(uint64_t *v, uint32_t iters);
+template __global__ void add_as_requests(uint64_t *v, uint32_t iters);
+template __global__ void add_trival(uint64_t *v, uint32_t iters);
+
 
 }
 

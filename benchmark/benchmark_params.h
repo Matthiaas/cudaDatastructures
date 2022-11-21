@@ -24,6 +24,9 @@ struct BenchParams {
     CPUSettings cpu;
     GPUSettings gpu;
     std::vector<std::string> queues;
+    bool atomicadd;
+    bool atomiccas;
+    std::string data_type;
 };
 
 std::vector<std::string> split(const std::string &s, char delim);

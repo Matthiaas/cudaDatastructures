@@ -1,3 +1,12 @@
 .vscode
 gconn
 build
+
+.ipynb_checkpoints
+
+# thrid party that is installed by script 
+dycuckoo
+warpcore
+third_party/helpers
+third_party/helper_cuda.h
+third_party/helper_string.h

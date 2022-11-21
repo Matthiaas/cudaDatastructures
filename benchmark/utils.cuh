@@ -50,7 +50,7 @@ void runCpuBenchmark(T* bechmark, size_t num_iterations, size_t threads) {
   bechmark->CpuRun(num_iterations, threads);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   bechmark->CpuCleanup();
-  auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  double time = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() / 1000.0;
   std::cout << "CPU," << bechmark->name()  << "," << threads << "," << 1 << "," << num_iterations << "," << time << std::endl;
   // std::cout << "Time: " <<   << " ms" << std::endl;
   // std::cout << "----------------------------------------" << std::endl;
@@ -59,14 +59,14 @@ void runCpuBenchmark(T* bechmark, size_t num_iterations, size_t threads) {
 
 void timeKernels(
   std::function<void(void)> initstate,
-  std::map<std::string, std::function<void(void)>> kernels, 
+  const std::map<std::string, std::function<void(void)>>& kernels, 
   std::function<bool(void)> validate)
 {
   for (auto it = kernels.begin(); it != kernels.end(); it++) {
     initstate();
     float time = timeKernel(it->second);
     bool validated = validate();
-    std::cout << it->first << " : " << time << " ms" << ", Validated: " << validated << std::endl;
+    std::cout << it->first << "," << validated << "," << time << std::endl;
   }
 }
 

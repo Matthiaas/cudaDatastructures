@@ -33,9 +33,6 @@ __global__ void runQueue(T** buf, int iterations, int threads_per_block) {
         } else {
         }
         __syncthreads();
-        
-        
-        
     }
 }
 
@@ -105,15 +102,18 @@ struct CpuGpuQueueBenchmark : public QueueBenchmark {
         
         std::vector<std::thread> threads;
         threads.reserve(num_threads);
-        threads.push_back(std::thread([this, num_iter]() {
-            for (int i = 0; i < num_iter; ) {
-                typename T::data_type res = 0;
-                if (buffer->push(i, true)) {
-                    buffer->pop(&res, true);
-                    i++;
+        for (int i = 0; i < num_threads; i++) {
+            threads.push_back(std::thread([this, num_iter]() {
+                for (int i = 0; i < num_iter; ) {
+                    typename T::data_type res = 0;
+                    if (buffer->push(i, true)) {
+                        buffer->pop(&res, true);
+                        i++;
+                    }
                 }
-            }
-        }));
+            }));
+        }
+        
 
         for (auto& t : threads) {
             t.join();

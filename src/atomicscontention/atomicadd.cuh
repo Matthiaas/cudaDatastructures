@@ -1,18 +1,20 @@
 #ifndef ATOMICADD_H
 #define ATOMICADD_H
 
+#include <cinttypes>
 #include "cuda_runtime.h"
 
 namespace atomicadd {
 
-__global__
-void add_as_accumuluated_requests(int *v);
+template <typename T>
+__global__ void add_as_accumuluated_requests(T *v, uint32_t iters);
 
-__global__
-void add_as_requests(int *v);
+template <typename T>
+__global__ void add_as_requests(T *v, uint32_t iters);
 
-__global__
-void add_trival(int *v);
+template <typename T>
+__global__ void add_trival(T *v, uint32_t iters);
+
 
 }
 

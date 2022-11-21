@@ -32,34 +32,37 @@ public:
 
   __device__ BrokerQueueFast() : head(0), tail(0), count(0) {
     for (int i = 0; i < SIZE; i++) {
-      ticket[i] = 0;
+      buffer[i].ticket = 0;
     }
   } 
   __device__ ~BrokerQueueFast() {
   }
 
-  typedef cub::BlockScan<uint32_t, BLOCKSIZE> BlockScan;
+  typedef cub::WarpScan<uint32_t> WarpScan;
   
   __device__ bool push(T value, bool insert)
   {
+    constexpr int warp_count = BLOCKSIZE / WARPSIZE;
+    int warp_id = threadIdx.x / WARPSIZE;
+
     uint32_t participate_in = insert; 
     bool success = insert;
-    __shared__ typename BlockScan::TempStorage temp_storage;
+    __shared__ typename WarpScan::TempStorage temp_storage[warp_count];
     uint32_t participate;  
-    BlockScan(temp_storage).ExclusiveSum(participate_in, participate);
+    WarpScan(temp_storage[warp_id]).ExclusiveSum(participate_in, participate);
     int64_t sum = participate + participate_in;
 
-    __shared__ bool try_again;
-    if (threadIdx.x == BLOCKSIZE - 1) {
+    __shared__ bool try_again[warp_count];
+    if (threadIdx.x % WARPSIZE  == WARPSIZE - 1) {
       if(fetch_and_add(&count, sum) + sum > SIZE) {
         fetch_and_add(&count, -sum);
-        try_again = true;
+        try_again[warp_id]  = true;
       } else {
-        try_again = false;
+        try_again[warp_id]  = false;
       }
     }
-    __syncthreads();
-    if (try_again) {
+    __syncwarp();
+    if (try_again[warp_id] ) {
       if (participate_in) {
         if(fetch_and_add(&count, 1) >= SIZE) {
           fetch_and_add(&count, -1);
@@ -67,28 +70,29 @@ public:
           success = false;
         }
       }
-      BlockScan(temp_storage).ExclusiveSum(participate_in, participate);
+      WarpScan(temp_storage[warp_id]).ExclusiveSum(participate_in, participate);
       sum = participate + participate_in;
     } 
-    __shared__ uint64_t shared_tail;
-    if (threadIdx.x == BLOCKSIZE - 1) {
-      shared_tail = fetch_and_add(&tail, static_cast<uint64_t>(sum));
+    __shared__ uint64_t shared_tail[warp_count];
+    if (threadIdx.x % WARPSIZE  == WARPSIZE - 1) {
+      shared_tail[warp_id] = fetch_and_add(&tail, static_cast<uint64_t>(sum));
     }
-    __syncthreads();
+    __syncwarp();
 
     if (!success) {
       return false;
     }
 
-    uint64_t my_tail = shared_tail + participate;
+    uint64_t my_tail = shared_tail[warp_id] + participate;
     uint64_t pos = my_tail % SIZE;
-    uint64_t expected_ticket = 2 * (my_tail / SIZE);
+    uint64_t ticket = 2 * (my_tail / SIZE);
+    volatile Node& node = buffer[pos];
     bool loop = true;
     while(loop) {
-      if (ticket[pos] == expected_ticket) {
-        data[pos] = value;
+      if (node.ticket == ticket) {
+        node.data = value;
         platformMemFence();
-        ticket[pos] = 2 * (my_tail / SIZE) + 1;
+        node.ticket = 2 * (my_tail / SIZE) + 1;
         loop = false;
       }
     }
@@ -97,51 +101,58 @@ public:
 
   __device__ bool pop(T* res, bool remove)
   {
+    constexpr int warp_count = BLOCKSIZE / WARPSIZE;
+    int warp_id = threadIdx.x / WARPSIZE;
+
     uint32_t participate_in = remove; 
     bool success = remove;
-    __shared__ typename BlockScan::TempStorage temp_storage;
+    __shared__ typename WarpScan::TempStorage temp_storage[warp_count];
     uint32_t participate;  
-    BlockScan(temp_storage).ExclusiveSum(participate_in, participate);
+    WarpScan(temp_storage[warp_id]).ExclusiveSum(participate_in, participate);
     int64_t sum = participate + participate_in;
-    __shared__ bool try_again;
-    if (threadIdx.x == BLOCKSIZE - 1) {
+    __shared__ bool try_again[warp_count];
+    if (threadIdx.x % WARPSIZE == WARPSIZE - 1) {
       if(fetch_and_add(&count, -sum) - sum < 0) {
         fetch_and_add(&count, sum);
-        try_again = true;
+        try_again[warp_id] = true;
       } else {
-        try_again = false;
+       
+        try_again[warp_id] = false;
       }
     }
-    __syncthreads();
-    if (try_again) {
+    __syncwarp();
+    if (try_again[warp_id]) {
+       
       if (participate && fetch_and_add(&count, -1) <= 0) {
         fetch_and_add(&count, 1); 
         success = false;
         participate_in = 0;
       }
-      BlockScan(temp_storage).ExclusiveSum(participate_in, participate);
+      WarpScan(temp_storage[warp_id]).ExclusiveSum(participate_in, participate);
       sum = participate + participate_in;
     }
 
-    __shared__ uint64_t shared_head;
-    if (threadIdx.x == BLOCKSIZE - 1) {
-      shared_head = fetch_and_add(&head, static_cast<uint64_t>(sum));
+    __shared__ uint64_t shared_head[warp_count];
+    if (threadIdx.x % WARPSIZE  == WARPSIZE - 1) {
+      
+      shared_head[warp_id] = fetch_and_add(&head, static_cast<uint64_t>(sum));
     }
-    __syncthreads();
+    __syncwarp();
 
     if (!success) {
       return false;
     }
 
-    uint64_t my_head = shared_head + participate;
+    uint64_t my_head = shared_head[warp_id] + participate;
     uint64_t pos = my_head % SIZE;
-    uint64_t expected_ticket = 2 * (my_head / SIZE) + 1;
+    uint64_t ticket = 2 * (my_head / SIZE) + 1;
+    volatile Node& node = buffer[pos];
     bool loop = true;
     while(loop) {
-      if (ticket[pos] == expected_ticket) {
-        *res = data[pos];
+      if (node.ticket == ticket) {
+        *res = node.data;
         platformMemFence();
-        ticket[pos] = 2 * ((my_head + SIZE) / SIZE);
+        node.ticket = 2 * ((my_head + SIZE) / SIZE);
         loop = false;
       }
     }
@@ -150,9 +161,16 @@ public:
   }
 
 private:
-  volatile T data[SIZE];
-  volatile uint64_t ticket[SIZE];
-  
+  enum NodeState {
+    EMPTY = 0,
+    FULL = 1,
+  };
+  struct Node {
+    T data;
+    uint64_t ticket;
+  };
+
+  volatile Node buffer[SIZE];
   using CounterType = typename std::conditional<
     CurrentPlatform == Platform::GPU, 
     int64_t, std::atomic<int64_t>>::type;
