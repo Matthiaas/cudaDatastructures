@@ -1,7 +1,7 @@
 #include "Kernels.cuh"
 #include "ProbingPolicies.cuh"
 #include "VectroizedReadPolicies.cuh"
-
+#include "warpcore/base.cuh"
 
 template<class KeyType>
 using DefaultVectorizedReadPolicy = StandardReadPolicy<KeyType>;
@@ -28,6 +28,12 @@ public:
 
     void init(uint64_t key_num) {
         bucket_num_ = key_num / StorageType::bucket_size;
+        if(UseBuckets) {
+            bucket_num_ =  warpcore::detail::get_valid_capacity(bucket_num_, 1);
+        } else {
+            bucket_num_ =  warpcore::detail::get_valid_capacity(bucket_num_, CooperativeGroupSize);
+        }
+
         cudaMalloc(&storage_, sizeof(StorageType) * bucket_num_);CUERR
         cudaMemset(storage_, 0, sizeof(StorageType) * bucket_num_);CUERR
     }
@@ -36,37 +42,36 @@ public:
         cudaFree(storage_);CUERR
     }
 
+    size_t GetCapacity() const {
+        return bucket_num_ * StorageType::bucket_size;
+    }
+
     __device__ __forceinline__ constexpr bool IsEmpty(const KeyType key) const noexcept {
         return key == EmptyKey;
     }
 
 
     __device__ __forceinline__ void 
-    GetKeyAndValuePos(key_type** cur_key_pos, value_type** cur_value_pos, const size_t hash,
+    GetKeyAndValuePos(key_type** cur_key_pos, value_type** cur_value_pos, size_t bucket_id,
                       const cg::thread_block_tile<CooperativeGroupSize>& group) const noexcept {
         if constexpr (UseBuckets) {
-            uint64_t bucket_id = hash % bucket_num_;
             *cur_key_pos = &storage_[bucket_id].keys[group.thread_rank() * KeyRead::key_count];
             *cur_value_pos = &storage_[bucket_id].values[group.thread_rank() * KeyRead::key_count];
         } else {
-            uint64_t bucket_id = (hash + group.thread_rank()) % bucket_num_;
+            bucket_id = (bucket_id + group.thread_rank()) % bucket_num_;
             *cur_key_pos = &storage_[bucket_id].keys[0];
             *cur_value_pos = &storage_[bucket_id].values[0];
-
-            // printf("value: %d at position %lld hash: %lld\n", **cur_value_pos, bucket_id, hash);
         }
     }
 
     __device__ bool retrieve(const KeyType key, ValueType& value_out, 
                              const cg::thread_block_tile<CooperativeGroupSize>& group) const noexcept {
-        ProbingPolicy probing_policy;
-        for (size_t hash = probing_policy.begin(key); hash != probing_policy.end(); hash = probing_policy.next()) {
+        ProbingPolicy probing_policy(bucket_num_);
+        for (size_t pos = probing_policy.begin(key); pos != probing_policy.end(); pos = probing_policy.next()) {
             key_type* cur_key_pos;
             value_type* cur_value_pos;
 
-            GetKeyAndValuePos(&cur_key_pos, &cur_value_pos, hash, group);
-            uint64_t bucket_id = (hash + group.thread_rank()) % bucket_num_;
-
+            GetKeyAndValuePos(&cur_key_pos, &cur_value_pos, pos, group);
             typename KeyRead::ArrayType cur_keys = KeyRead::read(cur_key_pos);
             bool hit = false;
             bool found_empty_slot = false;
@@ -81,7 +86,7 @@ public:
                 }
             }
 
-            const auto hit_mask = group.ballot(hit || empty_slot_mask);
+            const auto hit_mask = group.ballot(hit || found_empty_slot);
             if(hit_mask) {
                 return hit;
             }
@@ -97,7 +102,7 @@ public:
             const value_type& value,
             const cg::thread_block_tile<CooperativeGroupSize>& group) {
         
-       ProbingPolicy probing_policy;
+       ProbingPolicy probing_policy(bucket_num_);
        for (size_t hash = probing_policy.begin(key); hash != probing_policy.end(); hash = probing_policy.next()) {
             key_type* cur_key_pos;
             value_type* cur_value_pos;
@@ -170,6 +175,8 @@ public:
             }
         }
     }
+
+
 
 private:
 

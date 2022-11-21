@@ -56,14 +56,14 @@ public:
 
     size_t capacity() const noexcept
     {
-        return capacity_;
+        return impl_.GetCapacity();
     }  
 
     void init() const noexcept {}
 
     double load_factor() const noexcept
     {
-        return static_cast<double>(inserted_elements_) / capacity_;
+        return static_cast<double>(inserted_elements_) / capacity();
     }
 
     
@@ -77,7 +77,6 @@ private:
         CooperativeGroupSize,
         ProbingPolicy,
         VectrizedReadPolicyTemplate> impl_;
-    uint64_t capacity_;
     uint64_t inserted_elements_; 
 };
 

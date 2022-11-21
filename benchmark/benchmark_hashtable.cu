@@ -16,7 +16,6 @@ __device__  size_t hash_function(std::uint32_t x) {
     
 }
 
-
 template <typename T>
 __global__ void printArray(T *array, int size) {
     for (int i = 0; i < size; i++) {
@@ -101,14 +100,79 @@ void single_value_benchmark(
     cudaFree(values_d); CUERR
 }
 
+using KeyType = std::uint32_t;
+using ValueType = std::uint32_t;
+
+using namespace warpcore;
+using warpcore_hash_table_t = SingleValueHashTable<
+        KeyType,
+        ValueType,
+        defaults::empty_key<KeyType>(),
+        defaults::tombstone_key<KeyType>(),
+        defaults::probing_scheme_t<KeyType, 8>,
+        storage::key_value::AoSStore<KeyType, ValueType>>;
+
+
+using dycuckoo_hash_table_t = DycuckooHashTableWrapper;
+
+template <size_t CG_size>
+struct HashTablesWithCG{
+using lin_prob_no_bucket_standard_read = MyHashTable<
+    KeyType, ValueType,
+    0,0,
+    hash_function,
+    LinearProbingPolicy,
+    false,CG_size, 
+    StandardReadPolicy>;
+
+using exp_prob_no_bucket_standard_read = MyHashTable<
+    KeyType, ValueType,
+    0,0,
+    hash_function,
+    QuadraticProbingPolicy,
+    false,CG_size, 
+    StandardReadPolicy>;
+
+using double_prob_no_bucket_standard_read = MyHashTable<
+    KeyType, ValueType,
+    0,0,
+    hash_function,
+    DoubleHashinglProbingPolicy,
+    false,CG_size, 
+    StandardReadPolicy>;
+
+using lin_prob_bucket_standard_read = MyHashTable<
+    KeyType, ValueType,
+    0,0,
+    hash_function,
+    LinearProbingPolicy,
+    true,CG_size, 
+    StandardReadPolicy>;
+
+using exp_prob_bucket_standard_read = MyHashTable<
+    KeyType, ValueType,
+    0,0,
+    hash_function,
+    QuadraticProbingPolicy,
+    true,CG_size, 
+    StandardReadPolicy>;
+
+using double_prob_bucket_standard_read = MyHashTable<
+    KeyType, ValueType,
+    0,0,
+    hash_function,
+    DoubleHashinglProbingPolicy,
+    true,CG_size, 
+    StandardReadPolicy>;
+
+};
+
+
 int main(int argc, char* argv[])
 {
-    using namespace warpcore;
 
-    using key_t = std::uint32_t;
-    using value_t = std::uint32_t;
 
-    const uint64_t max_keys = 1UL << 25;
+    const uint64_t max_keys = 1UL << 28;
 
     const bool print_headers = true;
 
@@ -116,32 +180,15 @@ int main(int argc, char* argv[])
     if(argc > 2) dev_id = std::atoi(argv[2]);
     cudaSetDevice(dev_id); CUERR
 
-    key_t * keys_d = nullptr;
+    KeyType * keys_d = nullptr;
     if(argc > 1)
-        keys_d = load_keys<key_t>(argv[1], max_keys);
+        keys_d = load_keys<KeyType>(argv[1], max_keys);
     else
-        keys_d = generate_keys<key_t>(max_keys, 1);
+        keys_d = generate_keys<KeyType>(max_keys, 1);
 
-    using warpcore_hash_table_t = SingleValueHashTable<
-        key_t,
-        value_t,
-        defaults::empty_key<key_t>(),
-        defaults::tombstone_key<key_t>(),
-        defaults::probing_scheme_t<key_t, 8>,
-        storage::key_value::AoSStore<key_t, value_t>>;
+    
 
-    using dycuckoo_hash_table_t = DycuckooHashTableWrapper;
-
-
-    using my_hash_t = MyHashTable<
-        key_t, value_t,
-        0,0,
-        hash_function,
-        LinearProbingPolicy,
-        false,8, 
-        StandardReadPolicy>;
-
-    float load_factor = 0.3;
+    float load_factor = 0.8;
 
     single_value_benchmark<dycuckoo_hash_table_t>(
         keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
@@ -149,8 +196,126 @@ int main(int argc, char* argv[])
     single_value_benchmark<warpcore_hash_table_t>(
         keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
 
-    single_value_benchmark<my_hash_t>(
+
+
+    single_value_benchmark<HashTablesWithCG<1>::lin_prob_no_bucket_standard_read>(
         keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<2>::lin_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<4>::lin_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<8>::lin_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<16>::lin_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<32>::lin_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    
+
+
+    single_value_benchmark<HashTablesWithCG<1>::lin_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<2>::lin_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<4>::lin_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<8>::lin_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<16>::lin_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<32>::lin_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    
+    single_value_benchmark<HashTablesWithCG<1>::double_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<2>::double_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<4>::double_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<8>::double_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<16>::double_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<32>::double_prob_no_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    
+
+
+    single_value_benchmark<HashTablesWithCG<1>::double_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<2>::double_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<4>::double_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<8>::double_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<16>::double_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    single_value_benchmark<HashTablesWithCG<32>::double_prob_bucket_standard_read>(
+        keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    
+    // single_value_benchmark<HashTablesWithCG<1>::exp_prob_no_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<2>::exp_prob_no_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<4>::exp_prob_no_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<8>::exp_prob_no_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<16>::exp_prob_no_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<32>::exp_prob_no_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+
+    // single_value_benchmark<HashTablesWithCG<1>::exp_prob_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<2>::exp_prob_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<4>::exp_prob_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<8>::exp_prob_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<16>::exp_prob_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+    // single_value_benchmark<HashTablesWithCG<32>::exp_prob_bucket_standard_read>(
+    //     keys_d, max_keys, {max_keys}, {load_factor}, print_headers);
+
+
 
     cudaFree(keys_d); CUERR
 }
@@ -161,7 +326,7 @@ int main(int argc, char* argv[])
 // }
 
 // int main(int argc, char* argv[]) {
-//     using key_t = std::uint32_t;
+//     using KeyType = std::uint32_t;
 //     using value_t = std::uint32_t;
 
 //     const uint64_t max_keys = 1UL << 10;
@@ -171,17 +336,17 @@ int main(int argc, char* argv[])
 //     if(argc > 2) dev_id = std::atoi(argv[2]);
 //     cudaSetDevice(dev_id); CUERR
 
-//     key_t * keys_d = nullptr;
+//     KeyType * keys_d = nullptr;
 //     if(argc > 1)
-//         keys_d = load_keys<key_t>(argv[1], max_keys);
+//         keys_d = load_keys<KeyType>(argv[1], max_keys);
 //     else
-//         keys_d = generate_keys<key_t>(max_keys, 1);
+//         keys_d = generate_keys<KeyType>(max_keys, 1);
 
 //     using my_hash_t = MyHashTable<
-//         key_t, value_t,
+//         KeyType, value_t,
 //         0,0,
 //         hash_function,
-//         ExponentialProbingPolicy,
+//         QuadraticProbingPolicy,
 //         true,8, 
 //         Vectroized2ReadPolicy>;
 
