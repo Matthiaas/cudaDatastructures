@@ -26,7 +26,7 @@ struct Vectroized2ReadPolicy {
     __device__ static constexpr ArrayType read(T * key) noexcept {        
         if constexpr (std::is_same_v<T2, int2>) {
             T2 key2 = *reinterpret_cast<T2*>(key);
-            return {key[0], key[1]};
+            return {static_cast<T>(key2.x), static_cast<T>(key2.y)};
         } else {
             // Todo: support int64
             printf("Not implemented");
@@ -43,6 +43,10 @@ struct Vectroized4ReadPolicy {
     using T4 = int4;
     __device__ static constexpr ArrayType read(T * key) noexcept {
         T4 key4 = *reinterpret_cast<T4*>(key);
-        return {key4.x, key4.y, key4.z, key4.w};
+        return {
+            static_cast<T>(key4.x), 
+            static_cast<T>(key4.y), 
+            static_cast<T>(key4.z), 
+            static_cast<T>(key4.w)};
     }
 };

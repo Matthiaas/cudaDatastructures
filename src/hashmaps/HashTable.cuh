@@ -14,26 +14,37 @@ template <
 class MyHashTable
 {
 public:
+    using KeyRead = VectrizedReadPolicyTemplate<KeyType>;
+    
     using ProbingPolicy = ProbingPolicyTemplate<KeyType, HashFunction, UseBuckets, CooperativeGroupSize>;
     static_assert(UseBuckets == true || 
-        std::is_same_v<VectrizedReadPolicyTemplate<KeyType>, StandardReadPolicy<KeyType>>, 
+        std::is_same_v<KeyRead, StandardReadPolicy<KeyType>>, 
         "Vectorized read policy is only supported with buckets");
 
     using key_type = KeyType;
     using value_type = ValueType;
 
-    MyHashTable(uint64_t key_num)  {
+    MyHashTable(uint64_t key_num) : inserted_elements_(0) {
         impl_.init(key_num);
     }
     ~MyHashTable() {
         impl_.destroy();
     }
 
+    static std::string GetName() {
+        return std::string("MyHashTable") + 
+            std::string("|") + ProbingPolicy::GetName() + 
+            std::string("|usebuckets:") + std::to_string(UseBuckets) +
+            std::string("|groupsize:") + std::to_string(CooperativeGroupSize) + 
+            std::string("|VecRead:") + std::to_string(VectrizedReadPolicyTemplate<KeyType>::key_count);
+    }
+
     void insert(
             const key_type * const keys,
             const value_type * const values,
             const size_t count) {
-        constexpr size_t block_size = 1024;
+        inserted_elements_ += count;
+        constexpr size_t block_size = 512;
         const size_t block_count = (count * CooperativeGroupSize + block_size - 1) / block_size;
         insert_kernel<<<block_count, block_size>>>(keys, values, count, impl_);
         CUERR
@@ -43,7 +54,7 @@ public:
             const key_type * const keys,
             const size_t count,
             value_type * const values_out) {
-        constexpr size_t block_size = 1024;
+        constexpr size_t block_size = 512;
         const size_t block_count = (count * CooperativeGroupSize  + block_size - 1) / block_size;
         retrieve_kernel<<<block_count, block_size>>>(keys, values_out, count, impl_);
         CUERR
@@ -76,7 +87,7 @@ private:
         UseBuckets, 
         CooperativeGroupSize,
         ProbingPolicy,
-        VectrizedReadPolicyTemplate> impl_;
+        KeyRead> impl_;
     uint64_t inserted_elements_; 
 };
 

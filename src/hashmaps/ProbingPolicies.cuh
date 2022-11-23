@@ -2,6 +2,10 @@
 template<class KeyType, auto &HashFunction, bool UseBuckets, size_t CooperativeGroupSize = 16>
 struct LinearProbingPolicy {
 
+    static std::string GetName() {
+        return "LinearProbingPolicy";
+    }
+
     __device__  LinearProbingPolicy(size_t bucket_num) : bucket_num_(bucket_num) {}
 
     __device__ ~LinearProbingPolicy() {}
@@ -68,6 +72,10 @@ private:
 
 template<class KeyType, auto &HashFunction, bool UseBuckets, size_t CooperativeGroupSize>
 struct DoubleHashinglProbingPolicy {
+
+    static std::string GetName() {
+        return "DoubleHashinglProbingPolicy";
+    }
 
     __device__  DoubleHashinglProbingPolicy(size_t bucket_num) : 
         bucket_num_(bucket_num) {}

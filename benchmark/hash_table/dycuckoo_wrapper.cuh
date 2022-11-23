@@ -25,6 +25,8 @@ public:
     static constexpr uint32_t thread_num = 512;
     static constexpr uint32_t block_num = 512;
 
+    static std::string GetName() { return "DycuckooHashTableWrapper"; }
+
     DycuckooHashTableWrapper(uint64_t);
     ~DycuckooHashTableWrapper();
 
@@ -100,7 +102,9 @@ void DycuckooHashTableWrapper::insert(
         const value_type * const values_in,
         const index_type num_in) {
     inserted_elements_ += num_in;
-    DynamicHash::cuckoo_insert<<< block_num, thread_num >>> (
+    constexpr size_t block_size = 512;
+    const size_t block_count = (num_in * 16 + block_size - 1) / block_size;
+    DynamicHash::cuckoo_insert<<< block_count, block_size >>> (
         // Lets hope they not do soemting stupid.
         const_cast<key_type*>(keys_in), const_cast<value_type*>(values_in), num_in);   
 }
@@ -109,7 +113,9 @@ void DycuckooHashTableWrapper::retrieve(
         const key_type * const keys_in,
         const index_type num_in,
         value_type * const values_out) {
-    DynamicHash::cuckoo_search <<< block_num, thread_num >>> (
+    constexpr size_t block_size = 512;
+    const size_t block_count = (num_in * 16 + block_size - 1) / block_size;
+    DynamicHash::cuckoo_search <<< block_count, block_size >>> (
         const_cast<key_type*>(keys_in), values_out, num_in);
         
 }

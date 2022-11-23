@@ -399,6 +399,20 @@ public:
             << d << status
             << std::endl;
     }
+
+    void print_csv() const noexcept
+    {
+        std::cout << std::fixed
+            << d << sample_size
+            << d << density
+            << d << insert_ms
+            << d << query_ms
+            << d << inserts_per_second()
+            << d << queries_per_second()
+            << d << insert_troughput_gbps()
+            << d << query_troughput_gbps()
+            << std::endl;
+    }
 };
 
 #endif /* WARPCORE_BENCHMARK_COMMON_CUH */

@@ -11,7 +11,6 @@ void insert_kernel(
     const size_t gid = tid / HashTable::cooperative_group_size;
     const auto group =
         cg::tiled_partition<HashTable::cooperative_group_size>(cg::this_thread_block());
-
     if(gid < count) {
         call_on.insert(keys[gid], values[gid], group);
     }

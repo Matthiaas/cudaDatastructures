@@ -15,16 +15,14 @@ template <
     bool UseBuckets,
     size_t CooperativeGroupSize,
     typename ProbingPolicy, 
-    template <typename> typename VectrizedReadPolicyTemplate 
+    typename KeyRead 
 >
 class MyHashTableDeviceImpl {
 public:
     static constexpr size_t cooperative_group_size = CooperativeGroupSize;
+    static constexpr size_t KeyReadSize = KeyRead::key_count;
     using key_type = KeyType;
     using value_type = ValueType;
-
-    using KeyRead = VectrizedReadPolicyTemplate<KeyType>;
-    using ValueRead = VectrizedReadPolicyTemplate<ValueType>;
 
     void init(uint64_t key_num) {
         bucket_num_ = key_num / StorageType::bucket_size;
@@ -75,8 +73,7 @@ public:
             typename KeyRead::ArrayType cur_keys = KeyRead::read(cur_key_pos);
             bool hit = false;
             bool found_empty_slot = false;
-            constexpr size_t key_count = KeyRead::key_count;
-            for (size_t i = 0; i < key_count; ++i) {
+            for (size_t i = 0; i < KeyReadSize; ++i) {
                 if (cur_keys.data[i] == key) {
                     value_out = cur_value_pos[i];
                     hit = true;
@@ -107,17 +104,17 @@ public:
             key_type* cur_key_pos;
             value_type* cur_value_pos;
             GetKeyAndValuePos(&cur_key_pos, &cur_value_pos, hash, group);
-            key_type cur_key = *cur_key_pos;
 
             typename KeyRead::ArrayType cur_keys = KeyRead::read(cur_key_pos);
-            bool hit = false;
-            constexpr size_t key_count = KeyRead::key_count;
-            
-            for (size_t i = 0; i < key_count; ++i) {
+            bool hit = false;  
+            bool found_empty_key = false;         
+            for (size_t i = 0; i < KeyReadSize; ++i) {
                 if (cur_keys.data[i] == key) {
                     cur_value_pos[i] = value;
                     hit = true;
                     break;
+                } else if (IsEmpty(cur_keys.data[i])) {
+                    found_empty_key = true;
                 }
             }
             const auto hit_mask = group.ballot(hit);
@@ -126,7 +123,7 @@ public:
                 return true;
             }
 
-            auto empty_mask = group.ballot(IsEmpty(cur_key));
+            auto empty_mask = group.ballot(found_empty_key);
             
             bool success = false;
             bool duplicate = false;
@@ -134,10 +131,10 @@ public:
             while (empty_mask) {
                 const auto leader = ffs(empty_mask) - 1;
                 if (group.thread_rank() == leader) {
-                    for (size_t i = 0; i < key_count; ++i) {
+                    for (size_t i = 0; i < KeyReadSize; ++i) {
                         const auto old = atomicCAS(&cur_key_pos[i], EmptyKey, key);
 
-                        success = (old == cur_key);
+                        success = (old == EmptyKey);
                         duplicate = (old == key);
 
                         if (success || duplicate) {
