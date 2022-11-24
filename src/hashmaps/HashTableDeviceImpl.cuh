@@ -1,5 +1,6 @@
 #include "Kernels.cuh"
 #include "ProbingPolicies.cuh"
+#include "StorageLayout.cuh"
 #include "VectroizedReadPolicies.cuh"
 #include "warpcore/base.cuh"
 
@@ -15,6 +16,7 @@ template <
     bool UseBuckets,
     size_t CooperativeGroupSize,
     typename ProbingPolicy, 
+    typename StoreageLayout,
     typename KeyRead 
 >
 class MyHashTableDeviceImpl {
@@ -25,56 +27,34 @@ public:
     using value_type = ValueType;
 
     void init(uint64_t key_num) {
-        bucket_num_ = key_num / StorageType::bucket_size;
-        if(UseBuckets) {
-            bucket_num_ =  warpcore::detail::get_valid_capacity(bucket_num_, 1);
-        } else {
-            bucket_num_ =  warpcore::detail::get_valid_capacity(bucket_num_, CooperativeGroupSize);
-        }
-
-        cudaMalloc(&storage_, sizeof(StorageType) * bucket_num_);CUERR
-        cudaMemset(storage_, 0, sizeof(StorageType) * bucket_num_);CUERR
+        storage_.init(key_num);
     }
 
     void destroy() {
-        cudaFree(storage_);CUERR
+        storage_.destroy();
     }
 
     size_t GetCapacity() const {
-        return bucket_num_ * StorageType::bucket_size;
+        return storage_.GetCapacity();
     }
 
     __device__ __forceinline__ constexpr bool IsEmpty(const KeyType key) const noexcept {
         return key == EmptyKey;
     }
 
-
-    __device__ __forceinline__ void 
-    GetKeyAndValuePos(key_type** cur_key_pos, value_type** cur_value_pos, size_t bucket_id,
-                      const cg::thread_block_tile<CooperativeGroupSize>& group) const noexcept {
-        if constexpr (UseBuckets) {
-            *cur_key_pos = &storage_[bucket_id].keys[group.thread_rank() * KeyRead::key_count];
-            *cur_value_pos = &storage_[bucket_id].values[group.thread_rank() * KeyRead::key_count];
-        } else {
-            bucket_id = (bucket_id + group.thread_rank()) % bucket_num_;
-            *cur_key_pos = &storage_[bucket_id].keys[0];
-            *cur_value_pos = &storage_[bucket_id].values[0];
-        }
-    }
-
     __device__ bool retrieve(const KeyType key, ValueType& value_out, 
                              const cg::thread_block_tile<CooperativeGroupSize>& group) const noexcept {
-        ProbingPolicy probing_policy(bucket_num_);
+        ProbingPolicy probing_policy(storage_.GetBucketNum());
         for (size_t pos = probing_policy.begin(key); pos != probing_policy.end(); pos = probing_policy.next()) {
-            key_type* cur_key_pos;
-            value_type* cur_value_pos;
+            key_type* cur_key_pos = storage_.GetCurKeyPos(pos, group);
 
-            GetKeyAndValuePos(&cur_key_pos, &cur_value_pos, pos, group);
+            // GetKeyAndValuePos(&cur_key_pos, &cur_value_pos, pos, group);
             typename KeyRead::ArrayType cur_keys = KeyRead::read(cur_key_pos);
             bool hit = false;
             bool found_empty_slot = false;
             for (size_t i = 0; i < KeyReadSize; ++i) {
                 if (cur_keys.data[i] == key) {
+                    value_type* cur_value_pos = storage_.GetCurValuePos(pos, group);
                     value_out = cur_value_pos[i];
                     hit = true;
                     break;
@@ -99,17 +79,15 @@ public:
             const value_type& value,
             const cg::thread_block_tile<CooperativeGroupSize>& group) {
         
-       ProbingPolicy probing_policy(bucket_num_);
-       for (size_t hash = probing_policy.begin(key); hash != probing_policy.end(); hash = probing_policy.next()) {
-            key_type* cur_key_pos;
-            value_type* cur_value_pos;
-            GetKeyAndValuePos(&cur_key_pos, &cur_value_pos, hash, group);
-
+       ProbingPolicy probing_policy(storage_.GetBucketNum());
+       for (size_t pos = probing_policy.begin(key); pos != probing_policy.end(); pos = probing_policy.next()) {
+            key_type* cur_key_pos = storage_.GetCurKeyPos(pos, group);
             typename KeyRead::ArrayType cur_keys = KeyRead::read(cur_key_pos);
             bool hit = false;  
             bool found_empty_key = false;         
             for (size_t i = 0; i < KeyReadSize; ++i) {
                 if (cur_keys.data[i] == key) {
+                    value_type* cur_value_pos = storage_.GetCurValuePos(pos, group);
                     cur_value_pos[i] = value;
                     hit = true;
                     break;
@@ -138,6 +116,7 @@ public:
                         duplicate = (old == key);
 
                         if (success || duplicate) {
+                            value_type* cur_value_pos = storage_.GetCurValuePos(pos, group);
                             cur_value_pos[i] = value;
                             // printf( "insert key: %d at %lld\n", key, i);
                             break;
@@ -161,32 +140,34 @@ public:
 
     }
 
-    __device__ void print() {
-        for (int i = 0; i < bucket_num_; i++) {
-            if constexpr (UseBuckets) {
-                for (int j = 0; j < StorageType::bucket_size; j++) {
-                    printf("key: %d value: %d at position %d, %d\n", storage_[i].keys[j], storage_[i].values[j], i, j);
-                }
-            } else {
-                printf("key: %d value: %d at position %d\n", storage_[i].keys[0], storage_[i].values[0], i);
-            }
-        }
-    }
+    // __device__ void print() {
+    //     for (int i = 0; i < bucket_num_; i++) {
+    //         if constexpr (UseBuckets) {
+    //             for (int j = 0; j < StorageType::bucket_size; j++) {
+    //                 printf("key: %d value: %d at position %d, %d\n", storage_[i].keys[j], storage_[i].values[j], i, j);
+    //             }
+    //         } else {
+    //             printf("key: %d value: %d at position %d\n", storage_[i].keys[0], storage_[i].values[0], i);
+    //         }
+    //     }
+    // }
 
 
 
 private:
 
-    template<size_t BucketSize>
-    struct Bucket {
-        static constexpr size_t bucket_size = BucketSize;
-        KeyType keys[BucketSize];
-        ValueType values[BucketSize];
-    };
-    static constexpr size_t bucket_size = CooperativeGroupSize * KeyRead::key_count;
-    using StorageType = std::conditional_t<UseBuckets, Bucket<bucket_size>, Bucket<1>>;
-    StorageType * storage_;
-    size_t bucket_num_;
+    // template<size_t BucketSize>
+    // struct Bucket {
+    //     static constexpr size_t bucket_size = BucketSize;
+    //     KeyType keys[BucketSize];
+    //     ValueType values[BucketSize];
+    // };
+    // static constexpr size_t bucket_size = CooperativeGroupSize * KeyRead::key_count;
+    // using StorageType = std::conditional_t<UseBuckets, Bucket<bucket_size>, Bucket<1>>;
+    // StorageType * storage_;
+    // size_t bucket_num_;
+
+    StoreageLayout storage_;
 
 };
 

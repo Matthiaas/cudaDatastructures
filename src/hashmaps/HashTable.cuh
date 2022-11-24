@@ -7,6 +7,7 @@ template <
     KeyType TombstoneKey,
     auto &HashFunction,
     template <typename,auto&,bool,size_t> typename ProbingPolicyTemplate,
+    template <typename,typename,bool,size_t,typename> typename StoragePolicyTemplate,
     bool UseBuckets = true,
     size_t CooperativeGroupSize = 16,
     template <typename> typename VectrizedReadPolicyTemplate = DefaultVectorizedReadPolicy
@@ -17,6 +18,7 @@ public:
     using KeyRead = VectrizedReadPolicyTemplate<KeyType>;
     
     using ProbingPolicy = ProbingPolicyTemplate<KeyType, HashFunction, UseBuckets, CooperativeGroupSize>;
+    using StoragePolicy = StoragePolicyTemplate<KeyType, ValueType, UseBuckets, CooperativeGroupSize, KeyRead>;
     static_assert(UseBuckets == true || 
         std::is_same_v<KeyRead, StandardReadPolicy<KeyType>>, 
         "Vectorized read policy is only supported with buckets");
@@ -87,6 +89,7 @@ private:
         UseBuckets, 
         CooperativeGroupSize,
         ProbingPolicy,
+        StoragePolicy,
         KeyRead> impl_;
     uint64_t inserted_elements_; 
 };
