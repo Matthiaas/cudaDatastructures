@@ -51,9 +51,19 @@ set(ATOMIC_SOURCES
         )
 
 set(THIRD_PARTY_SOURCES
+        third_party/OriginalBrokerQueue.cuh
+        )
+
+set(THIRD_PARTY_ARG_PARSER_SOURCES
         third_party/arg_parser.cpp
         third_party/arg_parser.h
-        third_party/OriginalBrokerQueue.cuh
+        )
+
+set(THIRD_GRAPH_PARTY_SOURCES
+        third_party/graph_generation/graph_generation.h
+        third_party/graph_generation/graph_generation.cpp
+        third_party/graph_generation/graph_generation_util.h
+        third_party/graph_generation/graph_generation_util.cpp
         )
 
 file(GLOB THIRD_PARTY_DYCUCKOO_SOURCES
@@ -74,27 +84,32 @@ add_executable(benchmark
     ${QUEUE_SOURCES}
     ${ATOMIC_SOURCES}
     ${THIRD_PARTY_SOURCES}
+    ${THIRD_PARTY_ARG_PARSER_SOURCES}
+    )
+
+add_executable(graph_generator
+    ${THIRD_GRAPH_PARTY_SOURCES}
+    ${THIRD_PARTY_ARG_PARSER_SOURCES}
     )
     
 
-add_executable(test
-benchmark/benchmark_hashtable.cu
+add_executable(bench_hash
+    benchmark/benchmark_hashtable.cu
     ${THIRD_PARTY_DYCUCKOO_SOURCES}
     ${THIRD_PARTY_WARPCORE_SOURCES}
     third_party/dycuckoo/dynamicHash/thirdParty/cnmem.cpp
-
 )
 set_property(TARGET benchmark PROPERTY CUDA_ARCHITECTURES native)
 # set_property(TARGET test PROPERTY CUDA_ARCHITECTURES native)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
-target_compile_options(test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+target_compile_options(bench_hash PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 --extended-lambda
                        >)
 endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-target_compile_options(test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+target_compile_options(bench_hash PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         ${CUDA_NVCC_FLAGS_DEBUG}
                        >)
 endif()

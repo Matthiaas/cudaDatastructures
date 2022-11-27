@@ -27,7 +27,7 @@ public:
 
     static std::string GetName() { return "DycuckooHashTableWrapper"; }
 
-    DycuckooHashTableWrapper(uint64_t);
+    DycuckooHashTableWrapper(uint64_t, uint64_t);
     ~DycuckooHashTableWrapper();
 
     void insert(
@@ -55,12 +55,13 @@ public:
 private:
     uint64_t capacity_;
     uint64_t inserted_elements_;
+    uint64_t block_size_;
     cuckoo_t *host_cuckoo_table;
     error_table_t* host_error_table;
 };
 
-DycuckooHashTableWrapper::DycuckooHashTableWrapper(uint64_t init_kv_num) : 
-        inserted_elements_(0) {
+DycuckooHashTableWrapper::DycuckooHashTableWrapper(uint64_t init_kv_num, uint64_t block_size = 512) : 
+        inserted_elements_(0), block_size_(block_size) {
     ///cnmem init
     memset(&device, 0, sizeof(device));
     device.size = (size_t)4*1024*1024*1024; /// more =(size_t) (0.95*props.totalGlobalMem);
@@ -102,9 +103,8 @@ void DycuckooHashTableWrapper::insert(
         const value_type * const values_in,
         const index_type num_in) {
     inserted_elements_ += num_in;
-    constexpr size_t block_size = 512;
-    const size_t block_count = (num_in * 16 + block_size - 1) / block_size;
-    DynamicHash::cuckoo_insert<<< block_count, block_size >>> (
+    const size_t block_count = (num_in * 16 + block_size_ - 1) / block_size_;
+    DynamicHash::cuckoo_insert<<< block_count, block_size_ >>> (
         // Lets hope they not do soemting stupid.
         const_cast<key_type*>(keys_in), const_cast<value_type*>(values_in), num_in);   
 }
@@ -113,9 +113,8 @@ void DycuckooHashTableWrapper::retrieve(
         const key_type * const keys_in,
         const index_type num_in,
         value_type * const values_out) {
-    constexpr size_t block_size = 512;
-    const size_t block_count = (num_in * 16 + block_size - 1) / block_size;
-    DynamicHash::cuckoo_search <<< block_count, block_size >>> (
+    const size_t block_count = (num_in * 16 + block_size_ - 1) / block_size_;
+    DynamicHash::cuckoo_search <<< block_count, block_size_ >>> (
         const_cast<key_type*>(keys_in), values_out, num_in);
         
 }

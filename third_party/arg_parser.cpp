@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <charconv>
+#include <stdexcept>
+#include <optional>
+
 
 // This is taken from here:
 // https://stackoverflow.com/questions/865668/parsing-command-line-arguments-in-c
