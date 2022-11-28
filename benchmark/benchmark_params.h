@@ -22,10 +22,16 @@ struct BenchParams {
   CPUSettings cpu;
   GPUSettings gpu;
   std::vector<std::string> queues;
+
   bool atomicadd;
   bool atomiccas;
-  bool caching;
   std::string data_type;
+
+  bool caching; 
+
+  std::string graph_name;
+  std::vector<std::string> graph_algos;
+  std::vector<std::string> graph_layouts;
 };
 
 std::vector<std::string> split(const std::string &s, char delim);

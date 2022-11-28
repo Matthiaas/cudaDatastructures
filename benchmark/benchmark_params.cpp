@@ -29,13 +29,30 @@ BenchParams parseArguments(int argc, char *argv[]) {
   params.atomiccas = parser.cmdOptionExists("-atomiccas");
   params.caching = parser.cmdOptionExists("-caching");
   params.data_type = parser.getCmdOption("-data_type").value_or("none");
-  const auto queues = parser.getCmdOption("-queues");
+  params.graph_name = parser.getCmdOption("-graph_name").value_or("");
 
+  const auto queues = parser.getCmdOption("-queues");
   if (queues.has_value()) {
     params.queues = split(std::string(queues.value()), ',');
   } else {
     params.queues = {};
   }
+
+  const auto graph_algos = parser.getCmdOption("-graph_algos");
+  if (graph_algos.has_value()) {
+    params.graph_algos = split(std::string(graph_algos.value()), ',');
+  } else {
+    params.graph_algos = {};
+  }
+
+  const auto graph_layouts = parser.getCmdOption("-graph_layouts");
+  if (graph_layouts.has_value()) {
+    params.graph_layouts = split(std::string(graph_layouts.value()), ',');
+  } else {
+    params.graph_layouts = {};
+  }
+
+
   return params;
 }
 

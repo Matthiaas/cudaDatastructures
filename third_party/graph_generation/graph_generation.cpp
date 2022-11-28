@@ -1,4 +1,4 @@
-/*
+/*neighbors
  * This is from my ASL project. It is a graph generator that generates a graph.
  */
 
@@ -22,22 +22,22 @@
 
 const static std::map<GraphType, std::string> graph_to_file = {
     {GraphType::GERMAN_ROAD_NETWORK,
-     "../graphs/graph_data/german_road_network.mtx"},  // nodes 2.5x and
+     "./third_party/graph_generation/graph_data/german_road_network.mtx"},  // nodes 2.5x and
                                                        // edges 2.08x
     {GraphType::ACTOR_MOVIE_GRAPH, ""},
     {GraphType::COMP_SCIENCE_AUTHORS,
-     "../graphs/graph_data/com-dblp.ungraph.txt.gz"},  // 3% more node and 25%
+     "./third_party/graph_generation/graph_data/com-dblp.ungraph.txt.gz"},  // 3% more node and 25%
                                                        // more edges
     {GraphType::GOOGLE_CONTEST,
-     "../graphs/graph_data/google_contest.txt.gz"},  // nodes 2.22x and edges 9x
+     "./third_party/graph_generation/graph_data/google_contest.txt.gz"},  // nodes 2.22x and edges 9x
     {GraphType::HEP_LITERATURE,
-     "../graphs/graph_data/hep-th-citations"},  // 2% more nodes and 3% more
+     "./third_party/graph_generation/graph_data/hep-th-citations"},  // 2% more nodes and 3% more
                                                 // edges
     {GraphType::ROUTER_NETWORK, ""},
     {GraphType::WWW_NOTRE_DAME,
-     "../graphs/graph_data/web-NotreDame.txt.gz"},  // equal
+     "./third_party/graph_generation/graph_data/web-NotreDame.txt.gz"},  // equal
     {GraphType::US_PATENTS,
-     "../graphs/graph_data/cit-Patents.txt.gz"}};  // equal
+     "./third_party/graph_generation/graph_data/cit-Patents.txt.gz"}};  // equal
 
 void generate_random_graph(const GraphDefinition &graph_definition,
                            std::ofstream &outfile) {

@@ -10,3 +10,5 @@ warpcore
 third_party/helpers
 third_party/helper_cuda.h
 third_party/helper_string.h
+
+generated_graphs/

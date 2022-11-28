@@ -32,10 +32,13 @@ include_directories(/usr/local/cuda-11.8/include/)
 
 
 set(BENCH_SOURCES
-    benchmark/utils.cuh
+    benchmark/benchmark_utils.cuh
+    benchmark/benchmark_atomics.cuh
+    benchmark/benchmark_graphs.cuh
+    benchmark/benchmark_queues.cuh
+    benchmark/QueueBenchmark.cuh
     benchmark/benchmark_params.h
-    benchmark/benchmark_params.cpp
-    benchmark/main.cu)
+    benchmark/benchmark_params.cpp)
 
 set(QUEUE_SOURCES
         src/queues/broker_queue.cuh
@@ -59,11 +62,17 @@ set(THIRD_PARTY_ARG_PARSER_SOURCES
         third_party/arg_parser.h
         )
 
-set(THIRD_GRAPH_PARTY_SOURCES
+set(THIRD_PARTY_GRAPH_SOURCES
         third_party/graph_generation/graph_generation.h
         third_party/graph_generation/graph_generation.cpp
         third_party/graph_generation/graph_generation_util.h
         third_party/graph_generation/graph_generation_util.cpp
+)
+
+
+set(THIRD_PARTY_DEFAULT_GRAPH_SOURCES
+        third_party/graph_generation/default_graph.h
+        third_party/graph_generation/default_graph.cpp
         )
 
 file(GLOB THIRD_PARTY_DYCUCKOO_SOURCES
@@ -80,18 +89,19 @@ file(GLOB THIRD_PARTY_WARPCORE_SOURCES
         )   
 
 add_executable(benchmark
+    benchmark/main.cu
     ${BENCH_SOURCES}
     ${QUEUE_SOURCES}
     ${ATOMIC_SOURCES}
     ${THIRD_PARTY_SOURCES}
     ${THIRD_PARTY_ARG_PARSER_SOURCES}
+    ${THIRD_PARTY_DEFAULT_GRAPH_SOURCES}
     )
 
 add_executable(graph_generator
-    ${THIRD_GRAPH_PARTY_SOURCES}
+    ${THIRD_PARTY_GRAPH_SOURCES}
     ${THIRD_PARTY_ARG_PARSER_SOURCES}
     )
-    
 
 add_executable(bench_hash
     benchmark/benchmark_hashtable.cu
