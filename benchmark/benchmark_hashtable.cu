@@ -151,7 +151,7 @@ using lin_prob_no_bucket_standard_read = MyHashTable<
     0,0,
     hash_function,
     LinearProbingPolicy,
-    ContiguousKeyValLayout,
+    BucketizedLayout,
     false,CG_size, 
     StandardReadPolicy>;
 
@@ -217,46 +217,46 @@ int main(int argc, char* argv[]) {
     keys_d = generate_keys<KeyType>(max_keys, 1);
 
   auto load_factors =
-      std::vector<float>{0.9};  // 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99};
+      std::vector<float> {0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99};
   auto block_sizes =
       std::vector<uint64_t>{512};  // 32, 64, 128, 256, 512, 1024};
   auto max_keys_arr = std::vector<uint64_t>{max_keys};
 
   // We can not run the warpcore_hash_table_t with different block sizes.
   // So we run it with the default block size.
-  // single_value_benchmarks<
-  //     dycuckoo_hash_table_t,
-  //     warpcore_hash_table_t>(
-  //         keys_d, max_keys, max_keys_arr, load_factors, {0});
+  single_value_benchmarks<
+      dycuckoo_hash_table_t,
+      warpcore_hash_table_t>(
+          keys_d, max_keys, max_keys_arr, load_factors, {0});
 
   single_value_benchmarks<
-      // HashTablesWithCG<1>::lin_prob_no_bucket_standard_read,
-      // HashTablesWithCG<2>::lin_prob_no_bucket_standard_read,
-      // HashTablesWithCG<4>::lin_prob_no_bucket_standard_read,
-      // HashTablesWithCG<8>::lin_prob_no_bucket_standard_read,
-      // HashTablesWithCG<16>::lin_prob_no_bucket_standard_read,
-      // HashTablesWithCG<32>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<1>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<2>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<4>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<8>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<16>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<32>::lin_prob_no_bucket_standard_read,
 
-      // HashTablesWithCG<2>::lin_prob_bucket_standard_read,
-      // HashTablesWithCG<2>::lin_prob_bucket_standard_read,
-      // HashTablesWithCG<4>::lin_prob_bucket_standard_read,
-      // HashTablesWithCG<8>::lin_prob_bucket_standard_read,
-      // HashTablesWithCG<16>::lin_prob_bucket_standard_read,
-      // HashTablesWithCG<32>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<2>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<2>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<4>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<8>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<16>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<32>::lin_prob_bucket_standard_read,
 
-      // HashTablesWithCG<1>::double_prob_no_bucket_standard_read,
-      // HashTablesWithCG<2>::double_prob_no_bucket_standard_read,
-      // HashTablesWithCG<4>::double_prob_no_bucket_standard_read,
-      // HashTablesWithCG<8>::double_prob_no_bucket_standard_read,
-      // HashTablesWithCG<16>::double_prob_no_bucket_standard_read,
-      // HashTablesWithCG<32>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<1>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<2>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<4>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<8>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<16>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<32>::double_prob_no_bucket_standard_read,
 
-      // HashTablesWithCG<1>::double_prob_bucket_standard_read,
-      // HashTablesWithCG<2>::double_prob_bucket_standard_read,
+      HashTablesWithCG<1>::double_prob_bucket_standard_read,
+      HashTablesWithCG<2>::double_prob_bucket_standard_read,
       HashTablesWithCG<4>::double_prob_bucket_standard_read,
-      HashTablesWithCG<8>::double_prob_bucket_standard_read
-      // HashTablesWithCG<16>::double_prob_bucket_standard_read,
-      // HashTablesWithCG<32>::double_prob_bucket_standard_read
+      HashTablesWithCG<8>::double_prob_bucket_standard_read,
+      HashTablesWithCG<16>::double_prob_bucket_standard_read,
+      HashTablesWithCG<32>::double_prob_bucket_standard_read
 
       >(keys_d, max_keys, max_keys_arr, load_factors, block_sizes);
 

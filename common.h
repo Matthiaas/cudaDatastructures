@@ -5,8 +5,9 @@
 #include "device_launch_parameters.h" 
 #include <cub/cub.cuh>
 
+#define _CG_ABI_EXPERIMENTAL
+#define _CG_CPP11_FEATURES
 #include <cooperative_groups.h>
-using namespace cooperative_groups;
 
 #include <type_traits>
 

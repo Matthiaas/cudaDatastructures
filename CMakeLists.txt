@@ -17,7 +17,7 @@ set(WARNING_FLAGS "-Wall -Wextra -Wshadow -Wnon-virtual-dtor -Wpedantic")
 # Release Flags
 set(CUDA_NVCC_FLAGS_RELEASE "--extended-lambda")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}  ${WARNING_FLAGS}")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}  -O3")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
 # Debug Flags
 # 
@@ -114,7 +114,7 @@ set_property(TARGET benchmark PROPERTY CUDA_ARCHITECTURES native)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
 target_compile_options(bench_hash PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
---extended-lambda
+--extended-lambda -O3
                        >)
 endif()
 

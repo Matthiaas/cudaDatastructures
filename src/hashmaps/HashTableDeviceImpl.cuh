@@ -51,7 +51,7 @@ public:
      for (size_t i = 0; i < KeyReadSize; ++i) {
        if (cur_keys.data[i] == key) {
          value_type* cur_value_pos = storage_.GetCurValuePos(pos, group);
-         value_out = cur_value_pos[i];
+        //  value_out = cur_value_pos[i];
          hit = true;
          break;
        } else if (cur_keys.data[i] == EmptyKey) {
@@ -81,7 +81,7 @@ public:
      for (size_t i = 0; i < KeyReadSize; ++i) {
        if (cur_keys.data[i] == key) {
          value_type* cur_value_pos = storage_.GetCurValuePos(pos, group);
-         cur_value_pos[i] = value;
+        //  cur_value_pos[i] = value;
          hit = true;
          break;
        } else if (IsEmpty(cur_keys.data[i])) {
@@ -110,7 +110,7 @@ public:
 
            if (success || duplicate) {
              value_type* cur_value_pos = storage_.GetCurValuePos(pos, group);
-             cur_value_pos[i] = value;
+            //  cur_value_pos[i] = value;
              // printf( "insert key: %d at %lld\n", key, i);
              break;
            }

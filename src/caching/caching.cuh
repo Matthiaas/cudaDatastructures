@@ -13,10 +13,10 @@ __global__ void ReadAndWriteSameSlot(uint32_t *data, size_t size,
   if (idx < 8) {
     for (size_t i = 0; i < size; i += 1024) {
       uint32_t res = read(&data[i + idx]);
-      // if (!only_one || idx == 0) {
-      //   data[i] = res;
-      // }
-      __threadfence();
+      if (!only_one || idx == 0) {
+        data[i] = res;
+      }
+      // __threadfence();
     }
   }
 }
@@ -27,10 +27,10 @@ __global__ void ReadAndWriteDifferentSlot(uint32_t *data, size_t size,
   if (idx < 8) {
     for (size_t i = 0; i < size; i += 1024) {
       uint32_t res = read(&data[i + idx]);
-      // if (!only_one || idx == 0) {
-      //   data[i + 8] = res;
-      // }
-      __threadfence();
+      if (!only_one || idx == 0) {
+        data[i + 8] = res;
+      }
+      // __threadfence();
     }
   }
 }
@@ -41,10 +41,10 @@ __global__ void ReadAndWriteDifferentCacheLine(uint32_t *data, size_t size,
   if (idx < 8) {
     for (size_t i = 0; i < size; i += 1024) {
       uint32_t res = read(&data[i + idx]);
-      // if (!only_one || idx == 0) {
-      //   data[i + 512] = res;
-      // }
-      __threadfence();
+      if (!only_one || idx == 0) {
+        data[i + 512] = res;
+      }
+      // __threadfence();
     }
   }
 }
