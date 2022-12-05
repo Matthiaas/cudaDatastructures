@@ -24,7 +24,7 @@ __global__ void printArray(T* array, Index size) {
   printf("\n");
 }
 
-template <class HashTable>
+template <bool CountCollisions,class HashTable>
 HOSTQUALIFIER INLINEQUALIFIER void single_value_benchmark(
     const typename HashTable::key_type* keys_d, const uint64_t max_keys,
     std::vector<uint64_t> input_sizes, std::vector<float> load_factors,
@@ -65,7 +65,7 @@ HOSTQUALIFIER INLINEQUALIFIER void single_value_benchmark(
     output.sample_size = size;
     output.key_capacity = hash_table.capacity();
 
-    std::cout << HashTable::GetName() << " " << load << " " << block_size;
+    
     cudaMemcpy(values_d, keys_d, sizeof(value_t) * max_keys,
                cudaMemcpyDeviceToDevice);
 
@@ -88,7 +88,13 @@ HOSTQUALIFIER INLINEQUALIFIER void single_value_benchmark(
     output.key_load_factor = hash_table.load_factor();
     output.density = output.key_load_factor;
     // output.status = hash_table.pop_status();
-
+    std::cout << HashTable::GetName() << " " << load << " " << block_size; 
+    if constexpr (CountCollisions) {
+      const auto [a, b] = hash_table.GetCollisionCount();
+      std::cout << " " << a << " " << b;
+    } else {
+      std::cout << " 0 0";
+    }
     output.print_csv();
   };
   for (auto block_size : block_sizes) {
@@ -116,7 +122,7 @@ HOSTQUALIFIER INLINEQUALIFIER void single_value_benchmark(
 using KeyType = std::uint32_t;
 using ValueType = std::uint32_t;
 
-template <typename... Args>
+template <bool CountCollisions, typename... Args>
 void single_value_benchmarks(const KeyType* keys_d, const uint64_t max_keys,
                              std::vector<uint64_t> input_sizes,
                              std::vector<float> load_factors,
@@ -124,7 +130,7 @@ void single_value_benchmarks(const KeyType* keys_d, const uint64_t max_keys,
                              bool print_headers = true, uint8_t iters = 1,
                              std::chrono::milliseconds thermal_backoff =
                                  std::chrono::milliseconds(100)) {
-  (single_value_benchmark<Args>(keys_d, max_keys, input_sizes, load_factors,
+  (single_value_benchmark<CountCollisions, Args>(keys_d, max_keys, input_sizes, load_factors,
                                 block_sizes, print_headers, iters,
                                 thermal_backoff),
    ...);
@@ -142,7 +148,7 @@ using warpcore_hash_table_t = SingleValueHashTable<
 
 using dycuckoo_hash_table_t = DycuckooHashTableWrapper;
 
-template <size_t CG_size, size_t vec_read = 1>
+template <size_t CG_size, size_t vec_read = 1, bool CountCollisions = false>
 struct HashTablesWithCG{
 
 
@@ -153,7 +159,8 @@ using lin_prob_no_bucket_standard_read = MyHashTable<
     LinearProbingPolicy,
     BucketizedLayout,
     false,CG_size, 
-    StandardReadPolicy>;
+    StandardReadPolicy,
+    CountCollisions>;
 
 using exp_prob_no_bucket_standard_read = MyHashTable<
     KeyType, ValueType,
@@ -162,7 +169,8 @@ using exp_prob_no_bucket_standard_read = MyHashTable<
     QuadraticProbingPolicy,
     BucketizedLayout,
     false,CG_size, 
-    StandardReadPolicy>;
+    StandardReadPolicy,
+    CountCollisions>;
 
 using double_prob_no_bucket_standard_read = MyHashTable<
     KeyType, ValueType,
@@ -171,7 +179,8 @@ using double_prob_no_bucket_standard_read = MyHashTable<
     DoubleHashinglProbingPolicy,
     BucketizedLayout,
     false,CG_size, 
-    StandardReadPolicy>;
+    StandardReadPolicy,
+    CountCollisions>;
 
 using lin_prob_bucket_standard_read = MyHashTable<
     KeyType, ValueType,
@@ -180,7 +189,8 @@ using lin_prob_bucket_standard_read = MyHashTable<
     LinearProbingPolicy,
     BucketizedLayout,
     true,CG_size, 
-    StandardReadPolicy>;
+    StandardReadPolicy,
+    CountCollisions>;
 
 using exp_prob_bucket_standard_read = MyHashTable<
     KeyType, ValueType,
@@ -189,7 +199,8 @@ using exp_prob_bucket_standard_read = MyHashTable<
     QuadraticProbingPolicy,
     BucketizedLayout,
     true,CG_size, 
-    StandardReadPolicy>;
+    StandardReadPolicy,
+    CountCollisions>;
 
 using double_prob_bucket_standard_read = MyHashTable<
     KeyType, ValueType,
@@ -198,7 +209,8 @@ using double_prob_bucket_standard_read = MyHashTable<
     DoubleHashinglProbingPolicy,
     BucketizedLayout,
     true,CG_size, 
-    StandardReadPolicy>;
+    StandardReadPolicy,
+    CountCollisions>;
 
 };
 
@@ -224,40 +236,41 @@ int main(int argc, char* argv[]) {
 
   // We can not run the warpcore_hash_table_t with different block sizes.
   // So we run it with the default block size.
-  single_value_benchmarks<
+  single_value_benchmarks<false,
       dycuckoo_hash_table_t,
       warpcore_hash_table_t>(
           keys_d, max_keys, max_keys_arr, load_factors, {0});
 
-  single_value_benchmarks<
-      HashTablesWithCG<1>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<2>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<4>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<8>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<16>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<32>::lin_prob_no_bucket_standard_read,
+  constexpr size_t vec_read = 1;
+  constexpr bool count_collisions = true;
+  single_value_benchmarks<count_collisions, 
+      HashTablesWithCG<1, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<2, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<4, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<8, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<16, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
+      HashTablesWithCG<32, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
 
-      HashTablesWithCG<2>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<2>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<4>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<8>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<16>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<32>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<2, vec_read, count_collisions>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<2, vec_read, count_collisions>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<4, vec_read, count_collisions>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<8, vec_read, count_collisions>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<16, vec_read, count_collisions>::lin_prob_bucket_standard_read,
+      HashTablesWithCG<32, vec_read, count_collisions>::lin_prob_bucket_standard_read,
 
-      HashTablesWithCG<1>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<2>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<4>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<8>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<16>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<32>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<1, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<2, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<4, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<8, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<16, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
+      HashTablesWithCG<32, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
 
-      HashTablesWithCG<1>::double_prob_bucket_standard_read,
-      HashTablesWithCG<2>::double_prob_bucket_standard_read,
-      HashTablesWithCG<4>::double_prob_bucket_standard_read,
-      HashTablesWithCG<8>::double_prob_bucket_standard_read,
-      HashTablesWithCG<16>::double_prob_bucket_standard_read,
-      HashTablesWithCG<32>::double_prob_bucket_standard_read
-
+      HashTablesWithCG<1, vec_read, count_collisions>::double_prob_bucket_standard_read,
+      HashTablesWithCG<2, vec_read, count_collisions>::double_prob_bucket_standard_read,
+      HashTablesWithCG<4, vec_read, count_collisions>::double_prob_bucket_standard_read,
+      HashTablesWithCG<8, vec_read, count_collisions>::double_prob_bucket_standard_read,
+      HashTablesWithCG<16, vec_read, count_collisions>::double_prob_bucket_standard_read,
+      HashTablesWithCG<32, vec_read, count_collisions>::double_prob_bucket_standard_read
       >(keys_d, max_keys, max_keys_arr, load_factors, block_sizes);
 
   cudaFree(keys_d);

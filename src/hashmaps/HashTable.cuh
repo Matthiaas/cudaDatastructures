@@ -10,7 +10,8 @@ template <typename KeyType, typename ValueType,
           bool UseBuckets = true, 
           size_t CooperativeGroupSize = 16,
           template <typename> typename VectrizedReadPolicyTemplate =
-              DefaultVectorizedReadPolicy>
+              DefaultVectorizedReadPolicy,
+          bool CountCollsions = false>
 class MyHashTable {
  public:
   static constexpr bool can_adjust_blocksize = true;
@@ -73,10 +74,14 @@ class MyHashTable {
     return static_cast<double>(inserted_elements_) / capacity();
   }
 
+  std::pair<uint64_t, uint64_t> GetCollisionCount() {
+    return impl_.GetCollisionCount();
+  }
+
  private:
   MyHashTableDeviceImpl<KeyType, ValueType, EmptyKey, TombstoneKey, UseBuckets,
                         CooperativeGroupSize, ProbingPolicy, StoragePolicy,
-                        KeyRead>
+                        KeyRead, CountCollsions>
       impl_;
   uint64_t inserted_elements_;
   uint64_t block_size_;

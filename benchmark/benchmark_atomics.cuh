@@ -20,6 +20,9 @@ AtomicsMap<T> atomicadd_map = {
   {"add_as_requests", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
     atomicadd::add_as_requests<<<blocks, threads>>>(v,iters); 
   }},
+  {"add_cuda_pro_tip", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
+    atomicadd::add_warp_inc<<<blocks, threads>>>(v,iters); 
+  }},
   {"add_trival", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
     atomicadd::add_trival<<<blocks, threads>>>(v,iters); 
   }},

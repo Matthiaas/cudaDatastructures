@@ -72,6 +72,15 @@ void add_as_requests(T *v, uint32_t iters)
 
 template <typename T>
 __global__
+void add_warp_inc(T *v, uint32_t iters)
+{
+  while (iters--) {
+    atomicAggInc(v);
+  }
+}
+
+template <typename T>
+__global__
 void add_trival(T *v, uint32_t iters)
 {
   while (iters--) {
@@ -81,10 +90,12 @@ void add_trival(T *v, uint32_t iters)
 
 template __global__ void add_as_accumuluated_requests(uint32_t *v, uint32_t iters);
 template __global__ void add_as_requests(uint32_t *v, uint32_t iters);
+template __global__ void add_warp_inc(uint32_t *v, uint32_t iters);
 template __global__ void add_trival(uint32_t *v, uint32_t iters);
 
 template __global__ void add_as_accumuluated_requests(uint64_t *v, uint32_t iters);
 template __global__ void add_as_requests(uint64_t *v, uint32_t iters);
+template __global__ void add_warp_inc(uint64_t *v, uint32_t iters);
 template __global__ void add_trival(uint64_t *v, uint32_t iters);
 
 }

@@ -1,15 +1,15 @@
 # Install Warpcore
-# git clone https://github.com/sleeepyjack/warpcore.git
-# mv warpcore/include/warpcore/ third_party/warpcore
-# rm -rf warpcore 
-# # Install Warpcore Helpers
-# mkdir third_party/helpers
-# git clone https://gitlab.rlp.net/pararch/hpc_helpers.git
-# mv hpc_helpers/include/cuda_helpers.cuh third_party/helpers/cuda_helpers.cuh
-# mv hpc_helpers/include/packed_types.cuh third_party/helpers/packed_types.cuh
-# mv hpc_helpers/include/hpc_helpers.h third_party/helpers/hpc_helpers.h
-# mv hpc_helpers/include/type_helpers.h third_party/helpers/type_helpers.h
-# mv hpc_helpers/include/io_helpers.h third_party/helpers/io_helpers.h
+git clone https://github.com/sleeepyjack/warpcore.git
+mv warpcore/include/warpcore/ third_party/warpcore
+rm -rf warpcore 
+# Install Warpcore Helpers
+mkdir third_party/helpers
+git clone https://gitlab.rlp.net/pararch/hpc_helpers.git
+mv hpc_helpers/include/cuda_helpers.cuh third_party/helpers/cuda_helpers.cuh
+mv hpc_helpers/include/packed_types.cuh third_party/helpers/packed_types.cuh
+mv hpc_helpers/include/hpc_helpers.h third_party/helpers/hpc_helpers.h
+mv hpc_helpers/include/type_helpers.h third_party/helpers/type_helpers.h
+mv hpc_helpers/include/io_helpers.h third_party/helpers/io_helpers.h
 rm -rf hpc_helpers
 
 # # Install dycuckoo

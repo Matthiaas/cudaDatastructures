@@ -6,6 +6,8 @@
 #include "graphs/COOGraph.cuh"
 #include "graphs/ListGraph.cuh"
 
+#include "graphs/Gunrock_bfs.cuh"
+
 
 std::map<std::string, std::map<uint16_t, 
 std::function<void(ListGraph,uint32_t*, uint32_t, uint32_t, uint32_t)>>> listGraphAlgorithms = {
@@ -110,23 +112,35 @@ void runGraphBenchMark(const benchmark::BenchParams &params) {
         coo_graph.Free();
         coo_graph_d.Free();
       } else if (graph_type == "CSR") {
-        auto it = listGraphAlgorithms.find(algo);
-        if (it == listGraphAlgorithms.end()) {
-          std::cerr << "Algorithm " << algo << " not found for CSR"
-                    << std::endl;
-          continue;
-        }
-        for (const auto group_size : it->second) {
-          auto fun = group_size.second;
+        if (algo == "gunrock") {
           ListGraph list_graph = ListGraphFromDefaultGraph(graph);
           ListGraph list_graph_d = list_graph.CopyToDevice();
-          double ms =
-              time_call(std::bind(fun, list_graph_d, distances1, start_node,
-                                  params.gpu.blocks, params.gpu.threads));
+          double ms = time_call(std::bind(gunrock_bfs, list_graph_d,
+                                          reinterpret_cast<int*>(distances1),
+                                          start_node));
           std::cout << params.graph_name << " CSR " << algo << " "
-                    << group_size.first << " " << ms << std::endl;
+                      << 0 << " " << ms << std::endl;
           list_graph.Free();
           list_graph_d.Free();
+        } else {
+          auto it = listGraphAlgorithms.find(algo);
+          if (it == listGraphAlgorithms.end()) {
+            std::cerr << "Algorithm " << algo << " not found for CSR"
+                      << std::endl;
+            continue;
+          }
+          for (const auto group_size : it->second) {
+            auto fun = group_size.second;
+            ListGraph list_graph = ListGraphFromDefaultGraph(graph);
+            ListGraph list_graph_d = list_graph.CopyToDevice();
+            double ms =
+                time_call(std::bind(fun, list_graph_d, distances1, start_node,
+                                    params.gpu.blocks, params.gpu.threads));
+            std::cout << params.graph_name << " CSR " << algo << " "
+                      << group_size.first << " " << ms << std::endl;
+            list_graph.Free();
+            list_graph_d.Free();
+          }
         }
       }
     }

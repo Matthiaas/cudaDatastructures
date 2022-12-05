@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(cudaDataStructures LANGUAGES CXX CUDA)
+project(cudaDataStructures LANGUAGES CXX C CUDA)
 
 
 
@@ -28,8 +28,15 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer")
 
 include_directories(third_party)
 include_directories(src)
-include_directories(/usr/local/cuda-11.8/include/)
 
+# include(${PROJECT_SOURCE_DIR}/cmake/FetchThrustCUB.cmake)
+# include(${PROJECT_SOURCE_DIR}/cmake/FetchNVBench.cmake)
+
+# set(ESSENTIALS_BUILD_EXAMPLES OFF)
+# include(${PROJECT_SOURCE_DIR}/cmake/FetchGunrock.cmake)
+# include_directories(
+#     PUBLIC ${ESSENTIALS_INCLUDE_DIR}
+# )
 
 set(BENCH_SOURCES
     benchmark/benchmark_utils.cuh
@@ -97,6 +104,7 @@ add_executable(benchmark
     ${THIRD_PARTY_ARG_PARSER_SOURCES}
     ${THIRD_PARTY_DEFAULT_GRAPH_SOURCES}
     )
+target_link_libraries(benchmark PUBLIC essentials)
 
 add_executable(graph_generator
     ${THIRD_PARTY_GRAPH_SOURCES}
@@ -110,7 +118,9 @@ add_executable(bench_hash
     third_party/dycuckoo/dynamicHash/thirdParty/cnmem.cpp
 )
 set_property(TARGET benchmark PROPERTY CUDA_ARCHITECTURES native)
-# set_property(TARGET test PROPERTY CUDA_ARCHITECTURES native)
+set_property(TARGET bench_hash PROPERTY CUDA_ARCHITECTURES native)
+# target_link_libraries(bench_hash PRIVATE nvbench::nvbench)
+
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
 target_compile_options(bench_hash PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
@@ -123,3 +133,13 @@ target_compile_options(bench_hash PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         ${CUDA_NVCC_FLAGS_DEBUG}
                        >)
 endif()
+
+set_target_properties(benchmark
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+
+set_target_properties(bench_hash
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)

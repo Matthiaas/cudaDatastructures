@@ -8,6 +8,7 @@
 #include "COOGraph.cuh"
 #include "ListGraph.cuh"
 
+
 namespace coo_graph_aglos {
 
 __global__ void bfs_kernel_start(COOGraph graph, uint32_t* distances,
