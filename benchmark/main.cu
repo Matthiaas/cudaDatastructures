@@ -1,6 +1,5 @@
 #include <map>
 
-#include "OriginalBrokerQueue.cuh"
 #include "benchmark_atomics.cuh"
 #include "benchmark_caching.cuh"
 #include "benchmark_params.h"

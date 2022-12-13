@@ -64,19 +64,10 @@ public:
     __syncthreads();
     if (try_again) {
       if (participate_in) {
-      go_again:
-        // printf("go_again\n");
-        if (count < SIZE) {
-          if (fetch_and_add(&count, 1) >= SIZE) {
-            if (fetch_and_add(&count, -1) < SIZE) {
-              goto go_again;
-            }
-            participate_in = 0;
-            success = false;
-          }
-        } else {
-          success = false;
+        if(fetch_and_add(&count, 1) >= SIZE) {
+          fetch_and_add(&count, -1);
           participate_in = 0;
+          success = false;
         }
       }
       BlockScan(temp_storage).ExclusiveSum(participate_in, participate);
@@ -92,9 +83,6 @@ public:
       return false;
     }
 
-
-        // printf("uinsert %d\n", blockIdx.x);
-
     uint64_t my_tail = shared_tail + participate;
     uint64_t pos = my_tail % SIZE;
     uint64_t expected_ticket = 2 * (my_tail / SIZE);
@@ -107,7 +95,6 @@ public:
         loop = false;
       }
     }
-        // printf("uinserted %d\n", blockIdx.x);
     return true;
   }
 
@@ -130,17 +117,8 @@ public:
     }
     __syncthreads();
     if (try_again) {
-      go_again2:
-        // printf("pogo_again %d\n", blockIdx.x);
-      if (count >= 0) {
-        if (participate && fetch_and_add(&count, -1) <= 0) {
-          if(fetch_and_add(&count, 1) > 0) {
-            goto go_again2;
-          }
-          success = false;
-          participate_in = 0;
-        }
-      } else {
+      if (participate && fetch_and_add(&count, -1) <= 0) {
+        fetch_and_add(&count, 1); 
         success = false;
         participate_in = 0;
       }
@@ -158,8 +136,6 @@ public:
       return false;
     }
 
-        // printf("remve1 %d\n", blockIdx.x);
-
     uint64_t my_head = shared_head + participate;
     uint64_t pos = my_head % SIZE;
     uint64_t expected_ticket = 2 * (my_head / SIZE) + 1;
@@ -172,9 +148,6 @@ public:
         loop = false;
       }
     }
-
-    // printf("remve2 %d\n", blockIdx.x);
-
     return true;
 
   }

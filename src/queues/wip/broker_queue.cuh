@@ -22,6 +22,7 @@ namespace queues {
 
 template <typename T, size_t SIZE>
 class BrokerQueue {
+  static const size_t MAX_BLOCKSIZE = 1024;
 public:
   typedef T data_type;
 
@@ -36,7 +37,7 @@ public:
   __device__ __host__ ~BrokerQueue() {
   }
 
-  typedef cub::BlockScan<uint32_t, BLOCKSIZE> BlockScan;
+  typedef cub::BlockScan<uint32_t, MAX_BLOCKSIZE> BlockScan;
   
   __device__ bool push(T value, bool insert)
   {
@@ -50,7 +51,7 @@ public:
     uint32_t sum = participate + participate_in;
 
     __shared__ bool try_again;
-    if (threadIdx.x == BLOCKSIZE - 1) {
+    if (threadIdx.x == blockDim.x - 1) {
       // if(fetch_and_add(&count, sum) + sum > SIZE) {
       //   fetch_and_add(&count, -sum);
       //   try_again = true;
@@ -69,7 +70,7 @@ public:
       BlockScan(temp_storage).ExclusiveSum(participate_in, participate);
     } 
 
-    if (threadIdx.x == BLOCKSIZE - 1) {
+    if (threadIdx.x == blockDim.x - 1) {
       shared_tail = fetch_and_add(&tail, sum);
     }
     __syncthreads();

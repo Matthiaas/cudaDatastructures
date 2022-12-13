@@ -35,12 +35,15 @@ public:
 
   __device__ __host__ bool push(T value, bool insert) {
     bool done = false;
-    bool appended = false;
+    bool appended = false; 
+    if (!insert) {
+      return false;
+    }
     while (!done) {
-      if (head_ == tail_ + SIZE) {
+      uint32_t cur_head = head_;
+      if (cur_head == tail_ + SIZE) {
         done = true;
       } else {
-        uint32_t cur_head = head_;
         T old_value = static_cast<T>(platformCAS(
           reinterpret_cast<unsigned long long*>(&buffer[cur_head % SIZE].data), 
           static_cast<unsigned long long>(EMPTY_VALUE), 
@@ -51,8 +54,7 @@ public:
         } 
         platformCAS(const_cast<unsigned*>(static_cast<volatile unsigned*>(&head_)), 
               static_cast<unsigned>(cur_head), 
-              static_cast<unsigned>(cur_head + 1));
-        
+              static_cast<unsigned>(cur_head + 1));       
       }
     }
     return appended;
@@ -61,11 +63,15 @@ public:
   __device__ __host__ bool pop(T* res, bool remove) {
     bool done = false;
     bool popped = false;
+
+    if (!remove) {
+      return false;
+    }
     while (!done) {
-      if (tail_ == head_) {
+      uint32_t cur_tail = tail_;
+      if (cur_tail == head_) {
         done = true;
       } else {
-        uint32_t cur_tail = tail_;
         T result = buffer[cur_tail % SIZE].data;
         if (result != EMPTY_VALUE) {
           T old_value = static_cast<T>(platformCAS(

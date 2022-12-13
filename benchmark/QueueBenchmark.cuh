@@ -20,17 +20,20 @@ __global__ void runQueue(T** buf, int iterations, int threads_per_block) {
 
   __syncthreads();
   for (int i = 0; done_count != threads_per_block;) {
+    // printf("start\n");
     typename T::data_type res = 0;
     bool inserted = buffer->push(i, i < iterations);
+
     buffer->pop(&res, inserted);
     if (inserted) {
       i++;
       if (i == iterations) {
         atomicAdd(&done_count, 1);
       }
-    } else {
-    }
+    } 
     __syncthreads();
+
+    // printf("done\n");
   }
 }
 
@@ -69,21 +72,27 @@ struct CpuGpuQueueBenchmark : public QueueBenchmark {
   virtual bool CanRunOnGpu() override { return T::can_run_on_gpu; }
 
   virtual void GpuInit() override {
-    cudaMalloc(&d_buffer, sizeof(T*));
-    initQueue<<<1, 1>>>(d_buffer);
-    cudaDeviceSynchronize();
+    if constexpr (T::can_run_on_gpu) {
+      cudaMalloc(&d_buffer, sizeof(T*));
+      initQueue<<<1, 1>>>(d_buffer);
+      cudaDeviceSynchronize();
+    }
   }
 
   virtual void GpuRun(size_t num_iter, size_t num_blocks,
                       size_t num_threads) override {
-    runQueue<<<num_blocks, num_threads>>>(d_buffer, num_iter, num_threads);
-    cudaDeviceSynchronize();
+    if constexpr (T::can_run_on_gpu) {
+      runQueue<<<num_blocks, num_threads>>>(d_buffer, num_iter, num_threads);
+      cudaDeviceSynchronize();
+    }
   }
 
   virtual void GpuCleanup() override {
-    cleanupQueue<<<1, 1>>>(d_buffer);
-    cudaDeviceSynchronize();
-    cudaFree(d_buffer);
+    if constexpr (T::can_run_on_gpu) {
+      cleanupQueue<<<1, 1>>>(d_buffer);
+      cudaDeviceSynchronize();
+      cudaFree(d_buffer);
+    }
   }
 
   virtual bool CanRunOnCpu() override { return T::can_run_on_cpu; }

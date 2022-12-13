@@ -70,6 +70,20 @@ std::map<std::string, std::function<void(COOGraph,uint32_t*, uint32_t, uint32_t,
     {"bfs_iterations_based", coo_graph_aglos::bfs_iterations_based},
 };
 
+std::map<std::string, std::function<void(ListGraph, int*, int)>> gunrock_bfss = {
+    {"gunrock-thread_mapped", gunrock_bfs<gunrock::operators::load_balance_t::thread_mapped> },
+    // Not supported
+    // {"gunrock warp_mapped", gunrock_bfs<gunrock::operators::load_balance_t::warp_mapped> },
+    {"gunrock-block_mapped", gunrock_bfs<gunrock::operators::load_balance_t::block_mapped> },
+    // Not supported
+    // {"gunrock bucketing", gunrock_bfs<gunrock::operators::load_balance_t::bucketing> },
+    {"gunrock-merge_path", gunrock_bfs<gunrock::operators::load_balance_t::merge_path> },
+    // Segfaults
+    // {"gunrock merge_path_v2", gunrock_bfs<gunrock::operators::load_balance_t::merge_path_v2> },
+    // Not supported
+    // {"gunrock work_stealing", gunrock_bfs<gunrock::operators::load_balance_t::work_stealing> },
+};
+
 void runGraphBenchMark(const benchmark::BenchParams &params) {
   std::string filename = "./generated_graphs/"  + params.graph_name + ".txt";
 
@@ -115,11 +129,15 @@ void runGraphBenchMark(const benchmark::BenchParams &params) {
         if (algo == "gunrock") {
           ListGraph list_graph = ListGraphFromDefaultGraph(graph);
           ListGraph list_graph_d = list_graph.CopyToDevice();
-          double ms = time_call(std::bind(gunrock_bfs, list_graph_d,
+          
+          
+          for (const auto& gunrock_algo : gunrock_bfss) {
+            double ms = time_call(std::bind(gunrock_algo.second, list_graph_d,
                                           reinterpret_cast<int*>(distances1),
                                           start_node));
-          std::cout << params.graph_name << " CSR " << algo << " "
-                      << 0 << " " << ms << std::endl;
+            std::cout << params.graph_name << " CSR " << gunrock_algo.first << " "
+                        << 0 << " " << ms << std::endl;
+          }
           list_graph.Free();
           list_graph_d.Free();
         } else {

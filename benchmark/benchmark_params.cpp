@@ -37,6 +37,8 @@ BenchParams parseArguments(int argc, char *argv[]) {
   } else {
     params.queues = {};
   }
+  params.ring_buffer_size =
+      parser.getCmdOptionAsInt("-ring_buffer_size").value_or(0);
 
   const auto graph_algos = parser.getCmdOption("-graph_algos");
   if (graph_algos.has_value()) {

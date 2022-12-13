@@ -22,6 +22,7 @@ struct BenchParams {
   CPUSettings cpu;
   GPUSettings gpu;
   std::vector<std::string> queues;
+  size_t ring_buffer_size;
 
   bool atomicadd;
   bool atomiccas;

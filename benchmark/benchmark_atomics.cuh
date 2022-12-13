@@ -14,29 +14,32 @@ using AtomicsMap = std::map<std::string, std::function<void(size_t, size_t, size
 
 template<typename T>
 AtomicsMap<T> atomicadd_map = {
-  {"add_as_accumuluated_requests", [=] (size_t threads, size_t blocks, size_t iters, T* v) { 
+  {"Aggregated", [=] (size_t threads, size_t blocks, size_t iters, T* v) { 
     atomicadd::add_as_accumuluated_requests<<<blocks, threads>>>(v,iters); 
   }},
-  {"add_as_requests", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
+  {"Requests", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
     atomicadd::add_as_requests<<<blocks, threads>>>(v,iters); 
   }},
-  {"add_cuda_pro_tip", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
+  {"CudaProTip", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
     atomicadd::add_warp_inc<<<blocks, threads>>>(v,iters); 
   }},
-  {"add_trival", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
+  {"Trivial", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
     atomicadd::add_trival<<<blocks, threads>>>(v,iters); 
   }},
 };
 
 template<typename T>
 AtomicsMap<T> atomiccas_map = {
-  {"add_as_accumuluated_requests", [=] (size_t threads, size_t blocks, size_t iters, T* v) { 
+  {"Aggregated", [=] (size_t threads, size_t blocks, size_t iters, T* v) { 
     atomiccas::add_as_accumuluated_requests<<<blocks, threads>>>(v,iters); 
   }},
-  {"add_as_requests", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
+  {"Requests", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
     atomiccas::add_as_requests<<<blocks, threads>>>(v,iters); 
   }},
-  {"add_trival", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
+  {"CudaProTip", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
+    atomiccas::add_warp_inc<<<blocks, threads>>>(v,iters); 
+  }},
+  {"Trivial", [=] (size_t threads, size_t blocks, size_t iters, T* v)  { 
     atomiccas::add_trival<<<blocks, threads>>>(v,iters); 
   }},
 };

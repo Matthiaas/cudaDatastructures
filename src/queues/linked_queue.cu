@@ -49,7 +49,7 @@ __device__ void enqueue(volatile Queue<T>* queue, T&& data, bool insert) {
 
 template<class T>
 __device__ void enqueueAsRequest(volatile Queue<T>* queue, T&& data, bool insert) {
-    const int warp_count = BLOCKSIZE / WARPSIZE;
+    const int warp_count = blockDim.x / WARPSIZE;
     int warp_id = threadIdx.x / WARPSIZE;
 
     typedef cub::WarpScan<int> WarpScan;
@@ -92,7 +92,7 @@ __device__ void enqueue2(volatile Queue<T>* queue, volatile Node<T>* node) {
 template<class T>
 __device__ void enqueueAsRequest2(volatile Queue<T>* queue, T&& data, bool insert) {
     // enqueue(queue, std::forward<T>(data), true);
-    const int warp_count = BLOCKSIZE / WARPSIZE;
+    const int warp_count = blockDim.x / WARPSIZE;
     int warp_id = threadIdx.x / WARPSIZE;
 
     typedef cub::WarpScan<int> WarpScan;
@@ -146,7 +146,7 @@ __device__ bool dequeue(volatile Queue<T>* queue, T* res) {
 
 template <class T>
 __device__ bool dequeueAsRequest(volatile Queue<T>* queue, T* res) {
-    const int warp_count = BLOCKSIZE / WARPSIZE;
+    const int warp_count = blockDim.x / WARPSIZE;
     int warp_id = threadIdx.x / WARPSIZE;
 
     typedef cub::WarpScan<int> WarpScan;

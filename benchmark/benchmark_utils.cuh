@@ -12,7 +12,7 @@
 
 namespace benchmark {
 
-float timeKernel(std::function<void(void)> invoke_kernel) {
+inline float timeKernel(std::function<void(void)> invoke_kernel) {
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
@@ -27,8 +27,8 @@ float timeKernel(std::function<void(void)> invoke_kernel) {
 }
 
 template <typename T>
-void runGpuBenchmark(T* bechmark, size_t num_iterations, size_t blocks,
-                     size_t threads) {
+inline void runGpuBenchmark(T* bechmark, size_t num_iterations, size_t blocks,
+                     size_t threads, size_t ring_size) {
   // std::cout << "Running GPU bechmark for " << bechmark->name() << std::endl;
   // std::cout << "----------------------------------------" << std::endl;
 
@@ -37,14 +37,14 @@ void runGpuBenchmark(T* bechmark, size_t num_iterations, size_t blocks,
       std::bind(&T::GpuRun, bechmark, num_iterations, blocks, threads));
   bechmark->GpuCleanup();
   std::cout << "GPU," << bechmark->name() << "," << threads << "," << blocks
-            << "," << num_iterations << "," << ms_time << std::endl;
+            << "," << num_iterations << "," << ring_size << "," << ms_time << std::endl;
   // std::cout << "Time: " << ms_time << " ms" << std::endl;
   // std::cout << "----------------------------------------" << std::endl;
   // std::cout << "----------------------------------------" << std::endl;
 }
 
 template <typename T>
-void runCpuBenchmark(T* bechmark, size_t num_iterations, size_t threads) {
+inline void runCpuBenchmark(T* bechmark, size_t num_iterations, size_t threads, size_t ring_size) {
   // std::cout << "Running CPU bechmark for " << bechmark->name() << std::endl;
   // std::cout << "----------------------------------------" << std::endl;
 
@@ -59,13 +59,13 @@ void runCpuBenchmark(T* bechmark, size_t num_iterations, size_t threads) {
           .count() /
       1000.0;
   std::cout << "CPU," << bechmark->name() << "," << threads << "," << 1 << ","
-            << num_iterations << "," << time << std::endl;
+            << num_iterations << "," << ring_size  << "," << time << std::endl;
   // std::cout << "Time: " <<   << " ms" << std::endl;
   // std::cout << "----------------------------------------" << std::endl;
   // std::cout << "----------------------------------------" << std::endl;
 }
 
-void timeKernels(
+inline void timeKernels(
     std::function<void(void)> initstate,
     const std::map<std::string, std::function<void(void)>>& kernels,
     std::function<bool(void)> validate) {

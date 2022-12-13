@@ -29,20 +29,22 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer")
 include_directories(third_party)
 include_directories(src)
 
-# include(${PROJECT_SOURCE_DIR}/cmake/FetchThrustCUB.cmake)
-# include(${PROJECT_SOURCE_DIR}/cmake/FetchNVBench.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/FetchThrustCUB.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/FetchNVBench.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/FetchXenium.cmake)
 
-# set(ESSENTIALS_BUILD_EXAMPLES OFF)
-# include(${PROJECT_SOURCE_DIR}/cmake/FetchGunrock.cmake)
-# include_directories(
-#     PUBLIC ${ESSENTIALS_INCLUDE_DIR}
-# )
+set(ESSENTIALS_BUILD_EXAMPLES OFF)
+include(${PROJECT_SOURCE_DIR}/cmake/FetchGunrock.cmake)
+include_directories(
+    PUBLIC ${ESSENTIALS_INCLUDE_DIR}
+)
 
 set(BENCH_SOURCES
     benchmark/benchmark_utils.cuh
     benchmark/benchmark_atomics.cuh
     benchmark/benchmark_graphs.cuh
     benchmark/benchmark_queues.cuh
+    benchmark/benchmark_queues.cu
     benchmark/QueueBenchmark.cuh
     benchmark/benchmark_params.h
     benchmark/benchmark_params.cpp)
@@ -51,6 +53,7 @@ set(QUEUE_SOURCES
         src/queues/broker_queue.cuh
         src/queues/cas_ringbuffer.cuh
         src/queues/cas_ringbuffer_request.cuh
+        src/queues/lock_ringbuffer.h
         )
 
 set(ATOMIC_SOURCES
@@ -119,7 +122,7 @@ add_executable(bench_hash
 )
 set_property(TARGET benchmark PROPERTY CUDA_ARCHITECTURES native)
 set_property(TARGET bench_hash PROPERTY CUDA_ARCHITECTURES native)
-# target_link_libraries(bench_hash PRIVATE nvbench::nvbench)
+target_link_libraries(bench_hash PRIVATE nvbench::nvbench)
 
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")

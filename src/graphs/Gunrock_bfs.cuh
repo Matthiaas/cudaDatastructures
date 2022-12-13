@@ -182,6 +182,8 @@ float run(graph_t& G,
 }  // namespace bfs
 }  // namespace gunrock
 
+
+template <gunrock::operators::load_balance_t balancer>
 void gunrock_bfs(ListGraph list_graph, int* distances, int single_source) {
   using namespace gunrock;
   using namespace memory;
@@ -203,5 +205,5 @@ void gunrock_bfs(ListGraph list_graph, int* distances, int single_source) {
   vertex_t n_vertices = G.get_number_of_vertices();
   thrust::device_vector<vertex_t> predecessors(n_vertices);
 
-  gunrock::balancebfs::run<decltype(G), operators::load_balance_t::block_mapped>(G, single_source, distances, predecessors.data().get());
+  gunrock::balancebfs::run<decltype(G), balancer>(G, single_source, distances, predecessors.data().get());
 }

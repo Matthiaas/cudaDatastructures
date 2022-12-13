@@ -12,11 +12,15 @@
 
 #include <functional>
 
+
 namespace queues {
 
 
 template <typename T, T EMPTY_VALUE, size_t SIZE>
 class CASRingBufferRequest {
+  static constexpr size_t MAX_BLOCKSIZE = 1024;
+  static constexpr size_t WARPSIZE = 32;
+
 public:
   typedef T data_type;
   static constexpr bool can_run_on_gpu = true;
@@ -36,7 +40,7 @@ public:
 
   __device__ bool push(T value, bool insert) {
 
-    constexpr int warp_count = BLOCKSIZE / WARPSIZE;
+    constexpr int warp_count = MAX_BLOCKSIZE / WARPSIZE;
     int warp_id = threadIdx.x / WARPSIZE;
 
     typedef cub::WarpScan<int> WarpScan;
@@ -44,19 +48,21 @@ public:
     __shared__ T requests[warp_count * WARPSIZE];
     __shared__ bool result[warp_count * WARPSIZE];
     int pos = 1;
-    WarpScan(temp_storage[warp_id]).ExclusiveSum(pos, pos);
-    requests[warp_id * WARPSIZE + pos] = value;
+    WarpScan(temp_storage[warp_id]).ExclusiveSum(insert, pos);
+    if (insert){
+      requests[warp_id * WARPSIZE + pos] = value;
+    }
     __syncwarp();
 
     if(threadIdx.x % WARPSIZE == WARPSIZE - 1) {
-      for (int i = 0; i <= pos; i++) {
+      for (int i = 0; i < pos + insert; i++) {
         bool done = false;
         bool appended = false;
         while (!done) {
-          if (head_ == tail_ + SIZE) {
+          uint32_t cur_head = head_;
+          if (cur_head == tail_ + SIZE) {
             done = true;
           } else {
-            uint32_t cur_head = head_;
             T old_value = static_cast<T>(atomicCAS(
               reinterpret_cast<unsigned long long*>(&buffer[cur_head % SIZE].data), 
               static_cast<unsigned long long>(EMPTY_VALUE), 
@@ -67,19 +73,23 @@ public:
             } 
             atomicCAS(const_cast<unsigned*>(static_cast<volatile unsigned*>(&head_)), 
                   static_cast<unsigned>(cur_head), 
-                  static_cast<unsigned>(cur_head + 1));
-            
+                  static_cast<unsigned>(cur_head + 1));          
           }
         }
         result[warp_id * WARPSIZE + i] = appended;
       } 
+
     }
     __syncwarp();
-    return result[warp_id * WARPSIZE + pos];
+    if (insert){
+      return result[warp_id * WARPSIZE + pos];
+    } else {
+      return false;
+    }
   }
 
   __device__ bool pop(T* res, bool remove) {
-    constexpr int warp_count = BLOCKSIZE / WARPSIZE;
+    constexpr int warp_count = MAX_BLOCKSIZE / WARPSIZE;
     int warp_id = threadIdx.x / WARPSIZE;
     
     typedef cub::WarpScan<int> WarpScan;
@@ -87,19 +97,19 @@ public:
     __shared__ T res_values[warp_count * WARPSIZE];
     __shared__ bool result_bools[warp_count * WARPSIZE];
     int pos = 1;
-    WarpScan(temp_storage[warp_id]).ExclusiveSum(pos, pos);
+    WarpScan(temp_storage[warp_id]).ExclusiveSum(remove, pos);
     
     
 
     if (threadIdx.x % WARPSIZE == WARPSIZE - 1) {
-      for (int i = 0; i <= pos; i++) { 
+      for (int i = 0; i < pos + remove; i++) { 
         bool done = false;
         result_bools[warp_id * WARPSIZE + i] = false;
         while (!done) {
-          if (tail_ == head_) {
+          uint32_t cur_tail = tail_;
+          if (cur_tail == head_) {
             done = true;
           } else {
-            uint32_t cur_tail = tail_;
             T result_value = buffer[cur_tail % SIZE].data;
             if (result_value != EMPTY_VALUE) {
               T old_value = static_cast<T>(atomicCAS(
