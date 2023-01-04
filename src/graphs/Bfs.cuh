@@ -286,7 +286,6 @@ void bfs(ListGraph graph, uint32_t* distances, uint32_t start_node,
   bfs_kernel_start<<<block_count_for_init, num_threads>>>(graph, distances,
                                                           start_node, queue_in);
   uint32_t queue_out_size = 1;
-  
   for (uint32_t iteration = 1; queue_out_size; iteration++) {
     if constexpr (share_work) {
       cudaMemset(queue_pos, 0, sizeof(uint32_t));

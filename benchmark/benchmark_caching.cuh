@@ -31,6 +31,7 @@ CachinMap caching_map = {
 void runCachingBenchMark(CachinMap map, const benchmark::BenchParams& params) {
   uint32_t* v;
   cudaMalloc(&v, sizeof(uint32_t) * params.gpu.iterations);
+  cudaMemset(v, 0, sizeof(uint32_t) * params.gpu.iterations);
 
   for (auto [name, func] : map) {
     float time = benchmark::timeKernel(std::bind(

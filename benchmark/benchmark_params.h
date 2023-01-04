@@ -29,6 +29,7 @@ struct BenchParams {
   std::string data_type;
 
   bool caching; 
+  bool hash_map_copy_benchmark;
 
   std::string graph_name;
   std::vector<std::string> graph_algos;

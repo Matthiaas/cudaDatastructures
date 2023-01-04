@@ -6,6 +6,7 @@
 #include "benchmark_queues.cuh"
 #include "benchmark_utils.cuh"
 #include "benchmark_graphs.cuh"
+#include "benchmark_copying.cuh"
 
 int main(int argc, char* argv[]) {
   benchmark::BenchParams params = benchmark::parseArguments(argc, argv);
@@ -24,5 +25,9 @@ int main(int argc, char* argv[]) {
 
   if (params.graph_name != "") {
     runGraphBenchMark(params);
+  }
+
+  if (params.hash_map_copy_benchmark) {
+    runHashMapCopyingBenchMark(params);
   }
 }

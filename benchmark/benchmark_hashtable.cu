@@ -1,8 +1,12 @@
 
 
 #include "warpcore/single_value_hash_table.cuh"
-#include "hash_table/benchmark_common.cuh"
 #include "hash_table/dycuckoo_wrapper.cuh"
+#include "hash_table/gpu_hash_map_benchmark.cuh"
+
+#include "oneapi/tbb/concurrent_hash_map.h"
+
+#include "type_traits.h"
 
 #include <hashmaps/HashTable.cuh>
 #include <type_traits>
@@ -16,125 +20,8 @@ __device__ size_t hash_function(std::uint32_t x) {
   return x;
 }
 
-template <typename T, typename Index>
-__global__ void printArray(T* array, Index size) {
-  for (Index i = 0; i < size; i++) {
-    printf("%d ", array[i]);
-  }
-  printf("\n");
-}
-
-template <bool CountCollisions,class HashTable>
-HOSTQUALIFIER INLINEQUALIFIER void single_value_benchmark(
-    const typename HashTable::key_type* keys_d, const uint64_t max_keys,
-    std::vector<uint64_t> input_sizes, std::vector<float> load_factors,
-    std::vector<uint64_t> block_sizes, bool print_headers = true,
-    uint8_t iters = 1,
-    std::chrono::milliseconds thermal_backoff =
-        std::chrono::milliseconds(100)) {
-  using key_t = typename HashTable::key_type;
-  using value_t = typename HashTable::value_type;
-
-  value_t* values_d = nullptr;
-  cudaMalloc(&values_d, sizeof(value_t) * max_keys);
-  CUERR
-  cudaMemcpy(values_d, keys_d, sizeof(value_t) * max_keys,
-             cudaMemcpyDeviceToDevice);
-
-  const auto max_input_size =
-      *std::max_element(input_sizes.begin(), input_sizes.end());
-  const auto min_load_factor =
-      *std::min_element(load_factors.begin(), load_factors.end());
-
-  if (max_input_size > max_keys) {
-    std::cerr << "Maximum input size exceeded." << std::endl;
-    exit(1);
-  }
-
-  // if constexpr (!std::is_same_v<HashTable, DycuckooHashTableWrapper>)
-  // {
-  //     if(!sufficient_memory_oa<HashTable>(max_input_size / min_load_factor))
-  //     {
-  //         std::cerr << "Not enough GPU memory." << std::endl;
-  //         exit(1);
-  //     }
-  // }
-  auto benchmark_hashtable = [&](HashTable& hash_table, uint64_t size,
-                                 float load, uint64_t block_size) {
-    Output<key_t, value_t> output;
-    output.sample_size = size;
-    output.key_capacity = hash_table.capacity();
-
-    
-    cudaMemcpy(values_d, keys_d, sizeof(value_t) * max_keys,
-               cudaMemcpyDeviceToDevice);
-
-    output.insert_ms = benchmark_insert(hash_table, keys_d, values_d, size,
-                                        iters, thermal_backoff);
-
-    cudaMemset(values_d, 0, sizeof(value_t) * size);
-    // hash_table.print();
-
-    output.query_ms = benchmark_query(hash_table, keys_d, values_d, size, iters,
-                                      thermal_backoff);
-
-    cudaDeviceSynchronize();
-    CUERR
-    // printArray<<<1,1>>>(values_d, size);
-
-    cudaDeviceSynchronize();
-    CUERR
-
-    output.key_load_factor = hash_table.load_factor();
-    output.density = output.key_load_factor;
-    // output.status = hash_table.pop_status();
-    std::cout << HashTable::GetName() << " " << load << " " << block_size; 
-    if constexpr (CountCollisions) {
-      const auto [a, b] = hash_table.GetCollisionCount();
-      std::cout << " " << a << " " << b;
-    } else {
-      std::cout << " 0 0";
-    }
-    output.print_csv();
-  };
-  for (auto block_size : block_sizes) {
-    for (auto size : input_sizes) {
-      for (auto load : load_factors) {
-        for (size_t i = 0; i < iters; i++) {
-          const std::uint64_t capacity = size / load;
-          if (block_size == 0) {
-            // This means take the 'default' block size
-            HashTable hash_table(capacity);
-            benchmark_hashtable(hash_table, size, load, block_size);
-          } else {
-            HashTable hash_table(capacity, block_size);
-            benchmark_hashtable(hash_table, size, load, block_size);
-          }
-        }
-      }
-    }
-  }
-
-  cudaFree(values_d);
-  CUERR
-}
-
 using KeyType = std::uint32_t;
 using ValueType = std::uint32_t;
-
-template <bool CountCollisions, typename... Args>
-void single_value_benchmarks(const KeyType* keys_d, const uint64_t max_keys,
-                             std::vector<uint64_t> input_sizes,
-                             std::vector<float> load_factors,
-                             std::vector<uint64_t> block_sizes,
-                             bool print_headers = true, uint8_t iters = 1,
-                             std::chrono::milliseconds thermal_backoff =
-                                 std::chrono::milliseconds(100)) {
-  (single_value_benchmark<CountCollisions, Args>(keys_d, max_keys, input_sizes, load_factors,
-                                block_sizes, print_headers, iters,
-                                thermal_backoff),
-   ...);
-}
 
 using namespace warpcore;
 using warpcore_hash_table_t = SingleValueHashTable<
@@ -148,75 +35,108 @@ using warpcore_hash_table_t = SingleValueHashTable<
 
 using dycuckoo_hash_table_t = DycuckooHashTableWrapper;
 
-template <size_t CG_size, size_t vec_read = 1, bool CountCollisions = false>
-struct HashTablesWithCG{
+template <typename T, T val> 
+struct ValueContainer{ 
+ static constexpr T const value = val;
+};
 
-
-using lin_prob_no_bucket_standard_read = MyHashTable<
-    KeyType, ValueType,
-    0,0,
-    hash_function,
-    LinearProbingPolicy,
-    BucketizedLayout,
-    false,CG_size, 
-    StandardReadPolicy,
-    CountCollisions>;
-
-using exp_prob_no_bucket_standard_read = MyHashTable<
-    KeyType, ValueType,
-    0,0,
-    hash_function,
-    QuadraticProbingPolicy,
-    BucketizedLayout,
-    false,CG_size, 
-    StandardReadPolicy,
-    CountCollisions>;
-
-using double_prob_no_bucket_standard_read = MyHashTable<
-    KeyType, ValueType,
-    0,0,
-    hash_function,
-    DoubleHashinglProbingPolicy,
-    BucketizedLayout,
-    false,CG_size, 
-    StandardReadPolicy,
-    CountCollisions>;
-
-using lin_prob_bucket_standard_read = MyHashTable<
-    KeyType, ValueType,
-    0,0,
-    hash_function,
-    LinearProbingPolicy,
-    BucketizedLayout,
-    true,CG_size, 
-    StandardReadPolicy,
-    CountCollisions>;
-
-using exp_prob_bucket_standard_read = MyHashTable<
-    KeyType, ValueType,
-    0,0,
-    hash_function,
-    QuadraticProbingPolicy,
-    BucketizedLayout,
-    true,CG_size, 
-    StandardReadPolicy,
-    CountCollisions>;
-
-using double_prob_bucket_standard_read = MyHashTable<
-    KeyType, ValueType,
-    0,0,
-    hash_function,
-    DoubleHashinglProbingPolicy,
-    BucketizedLayout,
-    true,CG_size, 
-    StandardReadPolicy,
-    CountCollisions>;
+template <template <typename T> typename ReadPolicy> 
+struct ReadPolicyContainer {
 
 };
 
-int main(int argc, char* argv[]) {
-  const uint64_t max_keys = 1ul << 26;
+template <template <typename, auto &, bool, size_t>
+          typename ProbingPolicyTemplate> 
+struct ProbingPolicyContainer {
 
+};
+
+template <template <typename, typename, bool, size_t, typename>
+          typename StoragePolicyTemplate>
+struct StoragePolicyContainer {
+
+};
+
+using CGSizes = mb::set<
+  ValueContainer<size_t, 1>,
+  ValueContainer<size_t, 2>,
+  ValueContainer<size_t, 4>,
+  ValueContainer<size_t, 8>,
+  ValueContainer<size_t, 16>,
+  ValueContainer<size_t, 32>>;
+
+using BucketConfigs = mb::set<
+  ValueContainer<bool, true>,
+  ValueContainer<bool, false>>;
+
+using OnlyBucketsConfig = mb::set<
+  ValueContainer<bool, true>>;
+
+using ReadPolicies = mb::set<
+  ReadPolicyContainer<StandardReadPolicy>
+>;
+
+using VecReadPolicies = mb::set<
+  ReadPolicyContainer<Vectroized2ReadPolicy>,
+  ReadPolicyContainer<Vectroized4ReadPolicy>
+>;
+
+using ProbingPolicies = mb::set<
+  ProbingPolicyContainer<LinearProbingPolicy>,
+  ProbingPolicyContainer<DoubleHashinglProbingPolicy>
+>;
+
+using VecReadStorageLayouts = mb::set<
+  StoragePolicyContainer<BucketizedLayout>,
+  StoragePolicyContainer<ContiguousLayout>,
+>;
+
+using StorageLayouts = mb::set<
+  StoragePolicyContainer<BucketizedLayout>,
+  StoragePolicyContainer<ContiguousLayout>,
+  StoragePolicyContainer<ContiguousKeyValLayout>
+>;
+
+using ConfigCrossProduct1 =
+    mb::cross_product<CGSizes, BucketConfigs, ReadPolicies, ProbingPolicies,
+                      StorageLayouts>;
+using ConfigCrossProduct2 =
+    mb::cross_product<CGSizes, OnlyBucketsConfig, VecReadPolicies, ProbingPolicies,
+                      VecReadStorageLayouts>;
+
+template <typename A, typename B,typename C, typename D,typename E>
+struct Runner;
+
+template <size_t CooperativeGroupSize, bool UseBuckets,
+          template <typename> typename VectrizedReadPolicyTemplate,
+          template <typename, auto&, bool, size_t>
+          typename ProbingPolicyTemplate,
+          template <typename, typename, bool, size_t, typename>
+          typename StoragePolicyTemplate>
+struct Runner<ValueContainer<size_t, CooperativeGroupSize>,
+              ValueContainer<bool, UseBuckets>,
+              ReadPolicyContainer<VectrizedReadPolicyTemplate>,
+              ProbingPolicyContainer<ProbingPolicyTemplate>,
+              StoragePolicyContainer<StoragePolicyTemplate>> {
+ void operator()(const KeyType* keys_d, const uint64_t max_keys,
+                 std::vector<uint64_t> input_sizes,
+                 std::vector<float> load_factors,
+                 std::vector<uint64_t> block_sizes, bool print_headers = true,
+                 uint8_t iters = 1,
+                 std::chrono::milliseconds thermal_backoff =
+                     std::chrono::milliseconds(100)) {
+    constexpr bool count_collisions = false;
+    using Map = MyHashTable<KeyType, ValueType, 0, 0, hash_function,
+                            ProbingPolicyTemplate, StoragePolicyTemplate,
+                            UseBuckets, CooperativeGroupSize,
+                            VectrizedReadPolicyTemplate, count_collisions>;
+    single_value_benchmark<count_collisions, Map>(
+        keys_d, max_keys, input_sizes, load_factors, block_sizes, print_headers,
+        iters, thermal_backoff);
+ }
+};
+
+void run_gpu_benchmark(int argc, char* argv[], size_t max_keys) {
   uint64_t dev_id = 0;
   if (argc > 2) dev_id = std::atoi(argv[2]);
   cudaSetDevice(dev_id);
@@ -241,38 +161,80 @@ int main(int argc, char* argv[]) {
       warpcore_hash_table_t>(
           keys_d, max_keys, max_keys_arr, load_factors, {0});
 
-  constexpr size_t vec_read = 1;
-  constexpr bool count_collisions = true;
-  single_value_benchmarks<count_collisions, 
-      HashTablesWithCG<1, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<2, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<4, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<8, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<16, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
-      HashTablesWithCG<32, vec_read, count_collisions>::lin_prob_no_bucket_standard_read,
+  mb::for_each<ConfigCrossProduct1, Runner>(keys_d, max_keys, max_keys_arr, load_factors, block_sizes);
+  mb::for_each<ConfigCrossProduct2, Runner>(keys_d, max_keys, max_keys_arr, load_factors, block_sizes);
 
-      HashTablesWithCG<2, vec_read, count_collisions>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<2, vec_read, count_collisions>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<4, vec_read, count_collisions>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<8, vec_read, count_collisions>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<16, vec_read, count_collisions>::lin_prob_bucket_standard_read,
-      HashTablesWithCG<32, vec_read, count_collisions>::lin_prob_bucket_standard_read,
-
-      HashTablesWithCG<1, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<2, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<4, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<8, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<16, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
-      HashTablesWithCG<32, vec_read, count_collisions>::double_prob_no_bucket_standard_read,
-
-      HashTablesWithCG<1, vec_read, count_collisions>::double_prob_bucket_standard_read,
-      HashTablesWithCG<2, vec_read, count_collisions>::double_prob_bucket_standard_read,
-      HashTablesWithCG<4, vec_read, count_collisions>::double_prob_bucket_standard_read,
-      HashTablesWithCG<8, vec_read, count_collisions>::double_prob_bucket_standard_read,
-      HashTablesWithCG<16, vec_read, count_collisions>::double_prob_bucket_standard_read,
-      HashTablesWithCG<32, vec_read, count_collisions>::double_prob_bucket_standard_read
-      >(keys_d, max_keys, max_keys_arr, load_factors, block_sizes);
-
+ 
   cudaFree(keys_d);
   CUERR
+}
+
+void run_cpu_benchmark(int argc, char* argv[], size_t max_keys) {
+  std::vector<KeyType> keys(max_keys, 0);
+  std::vector<ValueType> values(max_keys, 0);
+  
+  for (int i = 0; i < max_keys; ++i) {
+    keys[i] = i;
+    values[i] = i;
+  }
+
+  auto thread_fun = [&](int tid, int num_threads, 
+                        tbb::concurrent_hash_map<KeyType, ValueType>& tbb_map) {
+    // Let each thread insert a contiguous range of keys.
+    int start = tid * max_keys / num_threads;
+    int end = (tid + 1) * max_keys / num_threads;
+    for (int i = start; i < end; ++i) {
+      tbb_map.insert({keys[i], values[i]});
+    }
+  };
+
+  auto load_factors =
+      std::vector<float> {0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99};
+
+  for (auto load_factor : load_factors) {
+    for (size_t thread_count = 1; thread_count <= 32; thread_count *= 2) {
+      Output<KeyType, ValueType> output;
+      output.sample_size = max_keys;
+      output.key_capacity = max_keys / load_factor;
+      output.key_load_factor = load_factor;
+      output.density = output.key_load_factor;
+
+      std::vector<std::thread> threads;
+      tbb::concurrent_hash_map<KeyType, ValueType> tbb_map(max_keys / load_factor );
+      
+      auto start = std::chrono::high_resolution_clock::now();
+      for (size_t i = 0; i < thread_count; ++i) {
+        threads.emplace_back(thread_fun, i, thread_count, std::ref(tbb_map));
+      }
+      for (auto& t : threads) t.join();
+      auto end = std::chrono::high_resolution_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+      output.insert_ms = duration / 1000.0;
+
+      start = std::chrono::high_resolution_clock::now();
+      // Query all keys.
+      for (int i = 0; i < max_keys; ++i) {
+        tbb::concurrent_hash_map<KeyType, ValueType>::accessor a;
+        tbb_map.find(a, keys[i]);
+        values[i] = a->second;
+      }
+      end = std::chrono::high_resolution_clock::now();
+      duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+      output.query_ms = duration / 1000.0;
+
+      std::cout << "CPUTbb" << " " << load_factor << " " << thread_count << " 0 0"; 
+      output.print_csv();
+    
+      threads.clear();
+    }
+  }
+}
+
+int main(int argc, char* argv[]) {
+  const uint64_t max_keys = 1ul << 26;
+  
+  // run_gpu_benchmark(argc, argv, max_keys);
+  run_cpu_benchmark(argc, argv, max_keys);
+
+  
 }

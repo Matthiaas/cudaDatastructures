@@ -37,19 +37,16 @@ namespace internal {
         using type = typename concat<next,skip>::type;
     };
 
-    template < template<typename...> typename F, typename... Args>
-    void for_each(set<set<Args...>>) {
-        F<Args...>()();
+    template < template<typename...> typename F, typename... Args, typename... fArgs>
+    void for_each(set<>, fArgs...) {
     }
 
-    template < template<typename...> typename F, typename... Args, typename... S>
-    void for_each(set<set<Args...>, S...>) {
-        F<Args...>()();
-        for_each<F>(set<S...> {});
+    template < template<typename...> typename F, typename... Args, typename... S, typename... fArgs>
+    void for_each(set<set<Args...>, S...>, fArgs... fargs) {
+        F<Args...>()(fargs...);
+        for_each<F>(set<S...> {},fargs...);
     }
 
-
-    
 }
 
 template <typename... Sets>
@@ -57,15 +54,11 @@ struct cross_product {
     using type = typename internal::cross_product_helper<set<>, Sets...>::type;
 };
 
-
-
-
-template <class CP, template<typename...> typename Runner>
-void for_each() {
+template <class CP, template<typename...> typename Runner, typename... Args>
+void for_each(Args... args) {
     typename CP::type x;
-    internal::for_each<Runner>(x);
+    internal::for_each<Runner>(x, args...);
 }
-
 
 // Usage:
 // template<typename... Args>

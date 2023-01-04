@@ -31,13 +31,19 @@ include_directories(src)
 
 include(${PROJECT_SOURCE_DIR}/cmake/FetchThrustCUB.cmake)
 include(${PROJECT_SOURCE_DIR}/cmake/FetchNVBench.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake/FetchXenium.cmake)
+set(GLOBAL_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
+include(${PROJECT_SOURCE_DIR}/cmake/FetchTbb.cmake)
+
+
+include_directories(${PROJECT_BINARY_DIR}/bin/oneTBB/include)
+link_directories(${PROJECT_BINARY_DIR}/bin/oneTBB/lib)
 
 set(ESSENTIALS_BUILD_EXAMPLES OFF)
 include(${PROJECT_SOURCE_DIR}/cmake/FetchGunrock.cmake)
 include_directories(
     PUBLIC ${ESSENTIALS_INCLUDE_DIR}
 )
+
 
 set(BENCH_SOURCES
     benchmark/benchmark_utils.cuh
@@ -114,6 +120,14 @@ add_executable(graph_generator
     ${THIRD_PARTY_ARG_PARSER_SOURCES}
     )
 
+add_executable(to_ligra
+    src/graphs/to_ligra.cu
+    ${THIRD_PARTY_DEFAULT_GRAPH_SOURCES}
+    ${THIRD_PARTY_ARG_PARSER_SOURCES}
+    )
+set_property(TARGET to_ligra PROPERTY CUDA_ARCHITECTURES native)
+
+
 add_executable(bench_hash
     benchmark/benchmark_hashtable.cu
     ${THIRD_PARTY_DYCUCKOO_SOURCES}
@@ -122,7 +136,9 @@ add_executable(bench_hash
 )
 set_property(TARGET benchmark PROPERTY CUDA_ARCHITECTURES native)
 set_property(TARGET bench_hash PROPERTY CUDA_ARCHITECTURES native)
-target_link_libraries(bench_hash PRIVATE nvbench::nvbench)
+target_link_libraries(bench_hash PRIVATE nvbench::nvbench oneTBB)
+add_dependencies(benchmark oneTBBDownload)
+# target_link_libraries(bench_hash oneTBB)
 
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -143,6 +159,16 @@ set_target_properties(benchmark
 )
 
 set_target_properties(bench_hash
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+
+set_target_properties(to_ligra
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+
+set_target_properties(graph_generator
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )

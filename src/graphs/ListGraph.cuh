@@ -15,6 +15,14 @@ struct ListGraph {
   uint32_t *neighbors;
   bool on_device;
 
+  ListGraph () {
+    num_edges = 0;
+    num_vertices = 0;
+    offsets = nullptr;
+    neighbors = nullptr;
+    on_device = false;
+  }
+
   ListGraph(uint32_t num_vertices, uint32_t num_edges, bool on_device) {
     this->num_vertices = num_vertices;
     this->num_edges = num_edges;

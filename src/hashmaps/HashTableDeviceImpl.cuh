@@ -30,9 +30,9 @@ public:
   void init(uint64_t key_num) { 
     storage_.init(key_num); 
     if constexpr (CountCollisions) {
-      cudaMalloc(&insert_collision_counter_, sizeof(uint64_t));
+      cudaMalloc(&cas_retry_counter_, sizeof(uint64_t));
       cudaMalloc(&find_collision_counter_, sizeof(uint64_t));
-      cudaMemset(insert_collision_counter_, 0, sizeof(uint64_t));
+      cudaMemset(cas_retry_counter_, 0, sizeof(uint64_t));
       cudaMemset(find_collision_counter_, 0, sizeof(uint64_t));
     }
   }
@@ -40,7 +40,7 @@ public:
   void destroy() {
     storage_.destroy();
     if constexpr (CountCollisions) {
-      cudaFree(insert_collision_counter_);
+      cudaFree(cas_retry_counter_);
       cudaFree(find_collision_counter_);
     }
   }
@@ -68,7 +68,7 @@ public:
           value_out = cur_value_pos[i];
           hit = true;
           break;
-        } else if (cur_keys.data[i] == EmptyKey) {
+        } else if (IsEmpty(cur_keys.data[i])) {
           found_empty_slot = true;
         }
       }
@@ -98,6 +98,7 @@ public:
       typename KeyRead::ArrayType cur_keys = KeyRead::read(cur_key_pos);
       bool hit = false;
       bool found_empty_key = false;
+      bool found_tombstone = false;
       for (size_t i = 0; i < KeyReadSize; ++i) {
         if (cur_keys.data[i] == key) {
           value_type* cur_value_pos = storage_.GetCurValuePos(pos, group);
@@ -106,6 +107,8 @@ public:
           break;
         } else if (IsEmpty(cur_keys.data[i])) {
           found_empty_key = true;
+        } else if (cur_keys.data[i] == TombstoneKey) {
+          found_tombstone = true;
         }
       }
       const auto hit_mask = group.ballot(hit);
@@ -114,7 +117,7 @@ public:
         return true;
       }
 
-      auto empty_mask = group.ballot(found_empty_key);
+      auto empty_mask = group.ballot(found_empty_key || found_tombstone);
 
       bool success = false;
       bool duplicate = false;
@@ -123,15 +126,19 @@ public:
         const auto leader = ffs(empty_mask) - 1;
         if (group.thread_rank() == leader) {
           for (size_t i = 0; i < KeyReadSize; ++i) {
-            const auto old = atomicCAS(&cur_key_pos[i], EmptyKey, key);
+            const auto old = atomicCAS(&cur_key_pos[i], cur_keys.data[i], key);
 
-            success = (old == EmptyKey);
+            success = (old == cur_keys.data[i]);
             duplicate = (old == key);
 
             if (success || duplicate) {
               value_type* cur_value_pos = storage_.GetCurValuePos(pos, group);
               cur_value_pos[i] = value;
               break;
+            }
+
+            if constexpr (CountCollisions) {
+              atomicAdd(cas_retry_counter_, 1);
             }
           }
         }
@@ -141,11 +148,6 @@ public:
         }
         if (group.any(success)) {
           return true;
-        }
-        if constexpr (CountCollisions) {
-          if (group.thread_rank() == 0) {
-            atomicAdd(insert_collision_counter_, 1);
-          }
         }
         empty_mask ^= 1UL << leader;
       }
@@ -157,7 +159,7 @@ public:
   std::pair<uint64_t, uint64_t> GetCollisionCount() {
     uint64_t icc;
     uint64_t fcc;
-    cudaMemcpy(&icc, insert_collision_counter_, sizeof(uint64_t),
+    cudaMemcpy(&icc, cas_retry_counter_, sizeof(uint64_t),
                cudaMemcpyDeviceToHost);
     cudaMemcpy(&fcc, find_collision_counter_, sizeof(uint64_t),
                cudaMemcpyDeviceToHost);
@@ -182,7 +184,7 @@ private:
  StoreageLayout storage_;
 
  struct Empty {};
- std::conditional_t<CountCollisions, uint64_t*, Empty> insert_collision_counter_;
+ std::conditional_t<CountCollisions, uint64_t*, Empty> cas_retry_counter_;
  std::conditional_t<CountCollisions, uint64_t*, Empty> find_collision_counter_;
 };
 

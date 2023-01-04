@@ -27,6 +27,14 @@ struct COOGraph {
   
   bool on_device;
 
+  COOGraph() {
+    num_vertices = 0;
+    num_edges = 0;
+    on_device = false;
+    srcs = nullptr;
+    dsts = nullptr;
+  }
+
   COOGraph(uint32_t num_vertices, uint32_t num_edges, bool on_device) {
     this->num_vertices = num_vertices;
     this->num_edges = num_edges;

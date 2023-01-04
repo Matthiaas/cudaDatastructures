@@ -8,6 +8,8 @@
 
 #include "graphs/Gunrock_bfs.cuh"
 
+#include "graphs/cpu_bfs.h"
+
 
 std::map<std::string, std::map<uint16_t, 
 std::function<void(ListGraph,uint32_t*, uint32_t, uint32_t, uint32_t)>>> listGraphAlgorithms = {
@@ -37,12 +39,14 @@ std::function<void(ListGraph,uint32_t*, uint32_t, uint32_t, uint32_t)>>> listGra
     //   {512, list_graph_aglos::bfs<512, true>},
     // }},
 
+    // Sharework is a scam it does not show any improvement and does not make any sense
+    // Thats why we set it to false
     {"bfs", {
       {1, list_graph_aglos::bfs<1, false, false>},
       {2, list_graph_aglos::bfs<2, false, false>},
       {4, list_graph_aglos::bfs<4, false, false>},
       {8, list_graph_aglos::bfs<8, false, false>},
-      {16, list_graph_aglos::bfs<16, false, false>},
+      {16, list_graph_aglos::bfs<16, false,false>},
       {32, list_graph_aglos::bfs<32, false, false>},
       {64, list_graph_aglos::bfs<64, false, false>},
       {128, list_graph_aglos::bfs<128, false, false>},
@@ -50,17 +54,17 @@ std::function<void(ListGraph,uint32_t*, uint32_t, uint32_t, uint32_t)>>> listGra
       {512, list_graph_aglos::bfs<512, false, false>},
 
     }},
-    {"bfs_sharework", {
-      {1, list_graph_aglos::bfs<1, true, false>},
-      {2, list_graph_aglos::bfs<2, true, false>},
-      {4, list_graph_aglos::bfs<4, true, false>},
-      {8, list_graph_aglos::bfs<8, true, false>},
-      {16, list_graph_aglos::bfs<16, true, false>},
-      {32, list_graph_aglos::bfs<32, true, false>},
-      {64, list_graph_aglos::bfs<64, true, false>},
-      {128, list_graph_aglos::bfs<128, true, false>},
-      {256, list_graph_aglos::bfs<256, true, false>},
-      {512, list_graph_aglos::bfs<512, true, false>},
+    {"bfs_collect", {
+      {1, list_graph_aglos::bfs<1, false, true>},
+      {2, list_graph_aglos::bfs<2, false, true>},
+      {4, list_graph_aglos::bfs<4, false, true>},
+      {8, list_graph_aglos::bfs<8, false, true>},
+      {16, list_graph_aglos::bfs<16, false, true>},
+      {32, list_graph_aglos::bfs<32, false, true>},
+      {64, list_graph_aglos::bfs<64, false, true>},
+      {128, list_graph_aglos::bfs<128, false, true>},
+      {256, list_graph_aglos::bfs<256, false, true>},
+      {512, list_graph_aglos::bfs<512, false, true>},
     }},
 };
 
@@ -109,34 +113,68 @@ void runGraphBenchMark(const benchmark::BenchParams &params) {
   for (const auto& graph_type : params.graph_layouts) {
     for (const auto& algo : params.graph_algos) {
       if (graph_type == "COO") {
-        auto it = cooGraphAlgorithms.find(algo);
-        if (it == cooGraphAlgorithms.end()) {
-          std::cerr << "Algorithm " << algo << " not found for COO"
+        if (algo == "copy") {
+          COOGraph coo_graph = COOFromDefaultGraph(graph);
+          COOGraph coo_graph_d;
+          double ms = time_call([&] () {
+            coo_graph_d = coo_graph.CopyToDevice();
+          });
+          std::cout << params.graph_name << " COO " << algo << " 1 " << ms << " "  << 0
                     << std::endl;
-          continue;
+        } else {
+          auto it = cooGraphAlgorithms.find(algo);
+          if (it == cooGraphAlgorithms.end()) {
+            std::cerr << "Algorithm " << algo << " not found for COO"
+                      << std::endl;
+            continue;
+          }
+          auto fun = it->second;
+          COOGraph coo_graph = COOFromDefaultGraph(graph);
+          COOGraph coo_graph_d;
+          double copy_ms = time_call([&] () {
+            coo_graph_d = coo_graph.CopyToDevice();
+          });
+          CUERR
+          double ms =
+              time_call(std::bind(fun, coo_graph_d, distances1, start_node,
+                                  params.gpu.blocks, params.gpu.threads));
+          std::cout << params.graph_name << " COO " << algo << " 1 " << ms << " "  << copy_ms
+                    << std::endl;
+          coo_graph.Free();
+          coo_graph_d.Free();
         }
-        auto fun = it->second;
-        COOGraph coo_graph = COOFromDefaultGraph(graph);
-        COOGraph coo_graph_d = coo_graph.CopyToDevice();
-        double ms =
-            time_call(std::bind(fun, coo_graph_d, distances1, start_node,
-                                params.gpu.blocks, params.gpu.threads));
-        std::cout << params.graph_name << " COO " << algo << " 1 " << ms
-                  << std::endl;
-        coo_graph.Free();
-        coo_graph_d.Free();
       } else if (graph_type == "CSR") {
-        if (algo == "gunrock") {
+        if (algo == "copy") {
           ListGraph list_graph = ListGraphFromDefaultGraph(graph);
-          ListGraph list_graph_d = list_graph.CopyToDevice();
-          
-          
+          ListGraph list_graph_d;
+          double ms = time_call([&] () {
+            list_graph_d = list_graph.CopyToDevice();
+          });
+          std::cout << params.graph_name << " CSR " << algo << " 1 " << ms << " "  << 0
+                    << std::endl;
+        } else if (algo == "cpu") {
+          auto cpu_distance = static_cast<uint32_t*>(malloc(sizeof(uint32_t) * graph.NumNodes()));
+          ListGraph list_graph = ListGraphFromDefaultGraph(graph);
+          double ms = time_call(std::bind(RunCpuBfs, list_graph, cpu_distance,
+                                          start_node));
+          std::cout << params.graph_name << " CSR " << algo << " 1 " << ms << " "  << 0
+                    << std::endl;
+          list_graph.Free();
+          free(cpu_distance);
+        }
+        else if (algo == "gunrock") {
+          ListGraph list_graph = ListGraphFromDefaultGraph(graph);
+          ListGraph list_graph_d;
+          double copy_ms = time_call([&] () {
+            list_graph_d = list_graph.CopyToDevice();
+          });
+          CUERR
           for (const auto& gunrock_algo : gunrock_bfss) {
             double ms = time_call(std::bind(gunrock_algo.second, list_graph_d,
                                           reinterpret_cast<int*>(distances1),
                                           start_node));
             std::cout << params.graph_name << " CSR " << gunrock_algo.first << " "
-                        << 0 << " " << ms << std::endl;
+                        << 0 << " " << ms << " " << copy_ms << std::endl;
           }
           list_graph.Free();
           list_graph_d.Free();
@@ -150,12 +188,16 @@ void runGraphBenchMark(const benchmark::BenchParams &params) {
           for (const auto group_size : it->second) {
             auto fun = group_size.second;
             ListGraph list_graph = ListGraphFromDefaultGraph(graph);
-            ListGraph list_graph_d = list_graph.CopyToDevice();
+            ListGraph list_graph_d;
+            double copy_ms = time_call([&] () {
+              list_graph_d = list_graph.CopyToDevice();
+            });
+            CUERR
             double ms =
                 time_call(std::bind(fun, list_graph_d, distances1, start_node,
                                     params.gpu.blocks, params.gpu.threads));
             std::cout << params.graph_name << " CSR " << algo << " "
-                      << group_size.first << " " << ms << std::endl;
+                      << group_size.first << " " << ms << " "  << copy_ms << std::endl;
             list_graph.Free();
             list_graph_d.Free();
           }

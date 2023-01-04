@@ -24,7 +24,7 @@ struct Vectroized2ReadPolicy {
   static_assert(std::is_same_v<T2, int2>, "T must be int2");
   __device__ static constexpr ArrayType read(T* key) noexcept {
     if constexpr (std::is_same_v<T2, int2>) {
-      T2 key2 = *reinterpret_cast<T2>(key);
+      T2 key2 = *reinterpret_cast<T2*>(key);
       return {static_cast<T>(key2.x), static_cast<T>(key2.y)};
     } else {
       // Todo: support int64

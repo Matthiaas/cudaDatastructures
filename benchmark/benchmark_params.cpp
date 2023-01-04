@@ -28,6 +28,7 @@ BenchParams parseArguments(int argc, char *argv[]) {
   params.atomicadd = parser.cmdOptionExists("-atomicadd");
   params.atomiccas = parser.cmdOptionExists("-atomiccas");
   params.caching = parser.cmdOptionExists("-caching");
+  params.hash_map_copy_benchmark = parser.cmdOptionExists("-hashmapcopy");
   params.data_type = parser.getCmdOption("-data_type").value_or("none");
   params.graph_name = parser.getCmdOption("-graph_name").value_or("");
 
