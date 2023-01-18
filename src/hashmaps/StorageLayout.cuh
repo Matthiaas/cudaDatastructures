@@ -5,12 +5,12 @@
 
 template <typename KeyType, typename ValueType, bool UseBuckets,
           size_t CooperativeGroupSize, typename KeyRead>
-class BucketizedLayout {
+class GroupLayout {
  public:
   static constexpr size_t bucket_size =
       UseBuckets ? (CooperativeGroupSize * KeyRead::key_count) : 1;
 
-  static std::string GetName() { return "BucketizedLayout"; }
+  static std::string GetName() { return "GroupLayout"; }
 
   void init(size_t key_num) {
     if (UseBuckets) {

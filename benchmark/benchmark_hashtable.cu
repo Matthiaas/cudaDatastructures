@@ -87,12 +87,12 @@ using ProbingPolicies = mb::set<
 >;
 
 using VecReadStorageLayouts = mb::set<
-  StoragePolicyContainer<BucketizedLayout>,
+  StoragePolicyContainer<GroupLayout>,
   StoragePolicyContainer<ContiguousLayout>,
 >;
 
 using StorageLayouts = mb::set<
-  StoragePolicyContainer<BucketizedLayout>,
+  StoragePolicyContainer<GroupLayout>,
   StoragePolicyContainer<ContiguousLayout>,
   StoragePolicyContainer<ContiguousKeyValLayout>
 >;
